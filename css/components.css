@@ -423,21 +423,43 @@ textarea.form-control {
 .input-group {
   display: flex;
   align-items: stretch;
+  width: 100%;
 }
-.input-group .form-control {
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+.input-group > * {
+  border-radius: 0;
+}
+.input-group > *:first-child {
+  border-top-left-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-lg);
+}
+.input-group > *:last-child {
+  border-top-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+.input-group > *:not(:last-child) {
   border-right: none;
 }
-.input-group .input-group-btn {
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+.input-group-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  background: var(--gray-100);
   border: 1.5px solid var(--gray-300);
-  border-left: none;
+  color: var(--gray-500);
+  font-size: var(--text-sm);
+}
+.input-group .input-group-btn {
+  border: 1.5px solid var(--gray-300);
   padding: 0 var(--space-4);
   background: var(--gray-50);
   cursor: pointer;
   transition: background var(--transition-fast);
   font-size: var(--text-sm);
   color: var(--gray-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .input-group .input-group-btn:hover { background: var(--gray-200); }
 
@@ -1331,6 +1353,27 @@ textarea.form-control {
 }
 
 /* ── Responsive Adjustments ───────────────────────────────── */
+@media (max-width: 768px) {
+  .form-control, 
+  select.form-control,
+  textarea.form-control {
+    font-size: 16px !important; /* Prevents auto-zoom on iOS */
+    min-height: 44px;
+  }
+  .btn {
+    min-height: 44px;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .btn-sm {
+    min-height: 38px;
+  }
+  .tab-btn {
+    padding: var(--space-4) var(--space-5);
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 640px) {
   .form-grid-2 { grid-template-columns: 1fr; }
   .options-grid { grid-template-columns: 1fr; }
