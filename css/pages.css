@@ -587,6 +587,7 @@
   .register-card   { padding: var(--space-5); }
   .dashboard-welcome { padding: var(--space-6); }
   .code-input-wrapper { flex-direction: column; }
+  .training-info-banner::after { display: none; }
 }
 
 @media (max-width: 400px) {
