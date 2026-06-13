@@ -120,6 +120,7 @@ const UI = {
    */
   confirm(message, confirmText = 'ยืนยัน', btnType = 'danger') {
     return new Promise((resolve) => {
+      let resolved = false;
       const m = this.modal({
         title: 'ยืนยันการดำเนินการ',
         content: `
@@ -132,14 +133,27 @@ const UI = {
           <button class="btn btn-ghost" id="confirmCancel">ยกเลิก</button>
           <button class="btn btn-${btnType}" id="confirmOk">${confirmText}</button>
         `,
-        onClose: () => resolve(false)
+        onClose: () => {
+          if (!resolved) {
+            resolved = true;
+            resolve(false);
+          }
+        }
       });
 
       m.el.querySelector('#confirmCancel').addEventListener('click', () => {
-        m.close(); resolve(false);
+        if (!resolved) {
+          resolved = true;
+          resolve(false);
+        }
+        m.close();
       });
       m.el.querySelector('#confirmOk').addEventListener('click', () => {
-        m.close(); resolve(true);
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
+        }
+        m.close();
       });
     });
   },
