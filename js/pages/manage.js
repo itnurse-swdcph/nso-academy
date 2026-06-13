@@ -232,3 +232,10 @@ const ManagePage = {
       Utils.downloadRawQR(url, `QR_Registration_${id}`);
     });
 
+    document.getElementById('modalDownloadCardBtn').addEventListener('click', () => {
+      Utils.downloadQRCard(title, url, `Card_Registration_${id}`);
+    });
+  },
+
+  cleanup() {}
+};
