@@ -223,9 +223,12 @@ const ManagePage = {
       if (ok) {
         Utils.storage.remove('mgmt_unlock');
         Utils.storage.remove('admin_logged_in');
+        localStorage.removeItem('token');
+        sessionStorage.clear();
         this._unlockedTrainingId = null;
         this._unlockedCode = null;
-        this._renderGate(container);
+        window.location.hash = '#/';
+        window.location.reload();
       }
     });
   },
