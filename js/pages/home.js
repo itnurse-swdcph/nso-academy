@@ -6,6 +6,7 @@ const HomePage = {
   _statsCache: null,
 
   async render(container, params) {
+    this._container = container;
     container.innerHTML = `
       <div class="animate-fade-in">
         <!-- Welcome Banner -->
@@ -213,7 +214,7 @@ const HomePage = {
   _handleEditClick(id) {
     const unlockInfo = Utils.storage.get('mgmt_unlock');
     if (unlockInfo && unlockInfo.trainingId === id) {
-      Router.navigate(`/edit?id=${id}`);
+      EditTrainingPage.open(id, () => this._loadData(this._container));
       return;
     }
 
@@ -263,7 +264,7 @@ const HomePage = {
           if (modal) modal.innerHTML = '';
 
           UI.success('เข้าสู่ระบบสำเร็จ');
-          Router.navigate(`/edit?id=${id}`);
+          EditTrainingPage.open(id, () => this._loadData(this._container));
         } catch (err) {
           errEl.classList.remove('hidden');
         } finally {
@@ -328,4 +329,3 @@ const HomePage = {
   cleanup() {
     this._statsCache = null;
   }
-};
