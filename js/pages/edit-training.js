@@ -168,6 +168,58 @@ const EditTrainingPage = {
     let startTime = '08:00';
     let endTime = '16:00';
 
+    // Helper function to format date to YYYY-MM-DD with UTC+7 timezone offset adjustment
+    const formatInputDate = (dateVal) => {
+      if (!dateVal) return '';
+      const str = String(dateVal).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        return str;
+      }
+      const d = new Date(str);
+      if (isNaN(d.getTime())) {
+        if (str.includes('T')) return str.split('T')[0];
+        return '';
+      }
+      // Add 7 hours for ICT (UTC+7) timezone shift
+      const ictTime = d.getTime() + 7 * 60 * 60 * 1000;
+      const ictDate = new Date(ictTime);
+      const y = ictDate.getUTCFullYear();
+      const m = String(ictDate.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(ictDate.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    // Helper function to format time to HH:mm
+    const formatInputTime = (timeVal) => {
+      if (!timeVal) return '';
+      const str = String(timeVal).trim();
+      if (/^\d{2}:\d{2}$/.test(str)) {
+        return str;
+      }
+      if (/^\d{2}\.\d{2}$/.test(str)) {
+        return str.replace('.', ':');
+      }
+      if (str.includes('T')) {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          const isHistorical = str.includes('1899');
+          const offset = isHistorical ? 24124000 : 7 * 60 * 60 * 1000;
+          const ictTime = d.getTime() + offset;
+          const ictDate = new Date(ictTime);
+          const hours = String(ictDate.getUTCHours()).padStart(2, '0');
+          const mins  = String(ictDate.getUTCMinutes()).padStart(2, '0');
+          return `${hours}:${mins}`;
+        }
+      }
+      const parts = str.split(':');
+      if (parts.length >= 2) {
+        const hours = parts[0].padStart(2, '0');
+        const mins  = parts[1].padStart(2, '0');
+        return `${hours}:${mins}`;
+      }
+      return '';
+    };
+
     if (sessionData) {
       sessionId = sessionData.sessionId || '';
       const dateVal = sessionData.sessionDate || '';
@@ -181,9 +233,10 @@ const EditTrainingPage = {
       endTime = sessionData.endTime || '16:00';
     }
 
-    // Clean to YYYY-MM-DD
-    if (startDate && startDate.includes('T')) startDate = startDate.split('T')[0];
-    if (endDate && endDate.includes('T')) endDate = endDate.split('T')[0];
+    startDate = formatInputDate(startDate);
+    endDate = formatInputDate(endDate);
+    startTime = formatInputTime(startTime);
+    endTime = formatInputTime(endTime);
 
     row.innerHTML = `
       <input type="hidden" class="session-id-input" value="${sessionId}">
