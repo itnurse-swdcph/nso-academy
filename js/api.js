@@ -93,6 +93,7 @@ const API = {
   getTrainings: ()               => ApiService.request('getTrainings'),
   getTrainingById: (id)          => ApiService.request('getTrainingById', { trainingId: id }),
   createTraining: (data)         => ApiService.request('createTraining', data),
+  updateTraining: (id, data)     => ApiService.request('updateTraining', { trainingId: id, ...data }),
   getTrainingSessions: (id)      => ApiService.request('getTrainingSessions', { trainingId: id }),
   validateCode: (id, code)       => ApiService.request('validateManagementCode', { trainingId: id, code }),
 
