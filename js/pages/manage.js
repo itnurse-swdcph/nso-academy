@@ -21,6 +21,7 @@ const ManagePage = {
   },
 
   _renderGate(container) {
+    const isAdmin = Utils.storage.get('admin_logged_in') === true;
     container.innerHTML = `
       <div class="animate-fade-in">
         <div class="management-gate">
@@ -39,28 +40,60 @@ const ManagePage = {
             <label class="form-label" for="mgmtCodeInput">รหัสผู้ดูแล (Management Code)</label>
             <div class="code-input-wrapper">
               <input type="text" id="mgmtCodeInput" class="code-input form-control"
-                placeholder="เช่น A4BC8X" maxlength="12" style="text-transform:uppercase; letter-spacing:0.2em; font-size: var(--text-xl); text-align:center;">
+                placeholder="${isAdmin ? 'สิทธิ์แอดมินผ่านตลอด' : 'เช่น A4BC8X'}" maxlength="12" style="text-transform:uppercase; letter-spacing:0.2em; font-size: var(--text-xl); text-align:center;" ${isAdmin ? 'disabled value="ADMIN BYPASS"' : ''}>
             </div>
           </div>
 
           <button class="btn btn-primary btn-lg btn-block" id="unlockBtn">
-            <i class="fa-solid fa-lock-open"></i> เข้าสู่ระบบ
+            <i class="fa-solid fa-lock-open"></i> เข้าสู่ระบบ ${isAdmin ? '(สิทธิ์แอดมิน)' : ''}
           </button>
+          
+          <button class="btn btn-outline-navy btn-block" id="adminLoginBtn" style="margin-top: var(--space-2);">
+            <i class="fa-solid fa-user-shield"></i> ${isAdmin ? 'ออกจากระบบแอดมิน' : 'เข้าสู่ระบบสำหรับแอดมิน'}
+          </button>
+
           <div id="unlockError" class="alert alert-danger hidden" style="margin-top: var(--space-4);">
             <span class="alert-icon"><i class="fa-solid fa-circle-xmark"></i></span>
             <div class="alert-content">รหัสไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง</div>
           </div>
+          
+          ${isAdmin ? `
+            <div style="text-align:center; margin-top: var(--space-3); color: var(--teal-600); font-size: var(--text-xs); font-weight: var(--fw-semi);">
+              <i class="fa-solid fa-circle-check"></i> เข้าสู่ระบบด้วยสิทธิ์ผู้ดูแลระบบสูงสุด (Admin)
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
 
     this._loadTrainings();
-    document.getElementById('mgmtCodeInput').addEventListener('input', (e) => {
-      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    });
+    if (!isAdmin) {
+      document.getElementById('mgmtCodeInput').addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      });
+    }
     document.getElementById('unlockBtn').addEventListener('click', () => this._handleUnlock(container));
-    document.getElementById('mgmtCodeInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this._handleUnlock(container);
+    if (!isAdmin) {
+      document.getElementById('mgmtCodeInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this._handleUnlock(container);
+      });
+    }
+    document.getElementById('adminLoginBtn').addEventListener('click', () => {
+      if (isAdmin) {
+        Utils.storage.remove('admin_logged_in');
+        UI.success('ออกจากระบบแอดมินแล้ว');
+        this._renderGate(container);
+      } else {
+        const password = prompt('กรุณากรอกรหัสผ่านสำหรับแอดมิน:');
+        if (password === null) return;
+        if (password === '11450') {
+          Utils.storage.set('admin_logged_in', true);
+          UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
+          this._renderGate(container);
+        } else {
+          UI.error('รหัสผ่านไม่ถูกต้อง');
+        }
+      }
     });
   },
 
@@ -87,6 +120,17 @@ const ManagePage = {
     const errEl = document.getElementById('unlockError');
 
     if (!trainingId) { UI.warning('กรุณาเลือกหัวข้ออบรม'); return; }
+
+    const isAdmin = Utils.storage.get('admin_logged_in') === true;
+    if (isAdmin) {
+      Utils.storage.set('mgmt_unlock', { trainingId, code: 'ADMIN' });
+      this._unlockedTrainingId = trainingId;
+      this._unlockedCode = 'ADMIN';
+      await this._renderManagementHub(container, trainingId);
+      UI.success('เข้าสู่ระบบสำเร็จ', 'ยินดีต้อนรับ (สิทธิ์แอดมิน)');
+      return;
+    }
+
     if (!code) { UI.warning('กรุณาใส่รหัสผู้ดูแล'); return; }
 
     const btn = document.getElementById('unlockBtn');
@@ -178,6 +222,7 @@ const ManagePage = {
       const ok = await UI.confirm('ต้องการออกจากระบบบริหารจัดการ?', 'ออกจากระบบ', 'danger');
       if (ok) {
         Utils.storage.remove('mgmt_unlock');
+        Utils.storage.remove('admin_logged_in');
         this._unlockedTrainingId = null;
         this._unlockedCode = null;
         this._renderGate(container);
