@@ -134,7 +134,7 @@ const ManagePage = {
         </div>
 
         <div class="management-nav-grid">
-          <a href="#/edit?id=${trainingId}" class="management-nav-card">
+          <a href="#" class="management-nav-card" id="mgmtEditBtn">
             <div class="nav-card-icon"><i class="fa-solid fa-pen-to-square"></i></div>
             <div class="nav-card-title">แก้ไขหัวข้ออบรม</div>
             <div class="nav-card-desc">แก้ไขชื่อหัวข้อ สถานที่จัด และรอบการอบรม</div>
@@ -162,6 +162,13 @@ const ManagePage = {
         </div>
       </div>
     `;
+
+    document.getElementById('mgmtEditBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      EditTrainingPage.open(trainingId, () => {
+        this._renderManagementHub(container, trainingId);
+      });
+    });
 
     document.getElementById('mgmtQRBtn').addEventListener('click', () => {
       this._showQRModal(trainingId, title);
@@ -225,10 +232,3 @@ const ManagePage = {
       Utils.downloadRawQR(url, `QR_Registration_${id}`);
     });
 
-    document.getElementById('modalDownloadCardBtn').addEventListener('click', () => {
-      Utils.downloadQRCard(title, url, `Card_Registration_${id}`);
-    });
-  },
-
-  cleanup() {}
-};
