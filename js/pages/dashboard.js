@@ -11,10 +11,11 @@ const DashboardPage = {
 
   async render(container, params) {
     const unlockInfo = Utils.storage.get('mgmt_unlock');
+    const isAdmin = Utils.storage.get('admin_logged_in') === true;
     const paramId = params.id;
 
-    // Check if unlocked for this training
-    if (!unlockInfo || (paramId && unlockInfo.trainingId !== paramId)) {
+    // Check if unlocked for this training or admin is logged in
+    if (!isAdmin && (!unlockInfo || (paramId && unlockInfo.trainingId !== paramId))) {
       container.innerHTML = `
         <div class="animate-fade-in" style="max-width:500px; margin: 4rem auto; text-align:center;">
           <div class="card" style="padding: var(--space-8);">
@@ -28,7 +29,7 @@ const DashboardPage = {
       return;
     }
 
-    this._trainingId = unlockInfo.trainingId;
+    this._trainingId = paramId || (unlockInfo ? unlockInfo.trainingId : null);
 
     container.innerHTML = `
       <div class="animate-fade-in">
