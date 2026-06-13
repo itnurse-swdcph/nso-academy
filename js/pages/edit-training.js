@@ -1,177 +1,138 @@
 /**
- * edit-training.js — Module 1.1: Edit Training Course
- * แก้ไขหัวข้ออบรม กำหนดวัน/เวลา และรอบการอบรมใหม่
+ * edit-training.js — Module 1.1: Edit Training Course (Modal-based)
+ * แก้ไขหัวข้ออบรม กำหนดวัน/เวลา และรอบการอบรมใหม่ในรูปแบบ Modal Pop-up
  */
 
 const EditTrainingPage = {
   _sessionCount: 0,
-  _trainingId: null,
-  _trainingData: null,
 
-  async render(container, params) {
-    const unlockInfo = Utils.storage.get('mgmt_unlock');
-    const paramId = params.id;
-
-    // Check if unlocked for this training
-    if (!unlockInfo || (paramId && unlockInfo.trainingId !== paramId)) {
-      container.innerHTML = `
-        <div class="animate-fade-in" style="max-width:500px; margin: 4rem auto; text-align:center;">
-          <div class="card" style="padding: var(--space-8);">
-            <div style="font-size:3rem; margin-bottom: var(--space-4); color: var(--gray-400);"><i class="fa-solid fa-lock"></i></div>
-            <h2 class="card-title" style="margin-bottom: var(--space-2);">ต้องระบุรหัสผู้ดูแล</h2>
-            <p style="color: var(--gray-600); margin-bottom: var(--space-6);">กรุณาเข้าสู่ระบบบริหารจัดการก่อนทำการแก้ไขข้อมูลการอบรมนี้</p>
-            <a href="#/manage" class="btn btn-primary btn-block">ไปที่ระบบจัดการ</a>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    this._trainingId = paramId;
+  /**
+   * เปิด Modal แก้ไขข้อมูลการอบรม
+   * @param {string} trainingId - รหัสการอบรม
+   * @param {Function} [onSaveSuccess] - callback เมื่อบันทึกสำเร็จ
+   */
+  async open(trainingId, onSaveSuccess = null) {
     this._sessionCount = 0;
 
-    container.innerHTML = `
-      <div class="animate-fade-in">
-        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap: var(--space-4);">
-          <div>
-            <h1 class="page-title">แก้ไขหัวข้ออบรม</h1>
-            <p class="page-subtitle">แก้ไขรายละเอียดหัวข้อการอบรมและรอบวันเวลาอบรม</p>
-          </div>
-          <div>
-            <a href="#/manage" class="btn btn-outline-navy btn-sm"><i class="fa-solid fa-arrow-left"></i> กลับไปหน้าจัดการ</a>
-          </div>
-        </div>
-
-        <div id="editFormContainer">
-          <div class="page-loader">
-            <div class="spinner"></div>
-            <span>กำลังโหลดข้อมูลการอบรม...</span>
-          </div>
-        </div>
-      </div>
-    `;
-
-    await this._loadTrainingData();
-  },
-
-  async _loadTrainingData() {
-    const formContainer = document.getElementById('editFormContainer');
-    if (!formContainer) return;
+    // Bug 2: Show Loading overlay while fetching initial data
+    UI.showLoadingOverlay('กำลังโหลดข้อมูลการอบรม...');
 
     try {
-      // Load training detail and sessions
       const [training, sessions] = await Promise.all([
-        API.getTrainingById(this._trainingId),
-        API.getTrainingSessions(this._trainingId)
+        API.getTrainingById(trainingId),
+        API.getTrainingSessions(trainingId)
       ]);
 
-      this._trainingData = training;
-      this._trainingData.sessions = sessions || [];
+      UI.hideLoadingOverlay();
 
-      this._renderForm(formContainer);
+      this._showEditModal(training, sessions || [], onSaveSuccess);
+
     } catch (err) {
-      console.error(err);
-      UI.showError(formContainer, 'ไม่สามารถโหลดข้อมูลการอบรมได้: ' + err.message, () => this._loadTrainingData());
+      UI.hideLoadingOverlay();
+      console.error('[EditTrainingPage] Load error:', err);
+      UI.error('ไม่สามารถโหลดข้อมูลการอบรมได้: ' + err.message);
     }
   },
 
-  _renderForm(container) {
-    const t = this._trainingData;
-    const firstSession = t.sessions[0] || {};
+  _showEditModal(training, sessions, onSaveSuccess) {
+    const firstSession = sessions[0] || {};
     const isLimited = firstSession.maxSeats && firstSession.maxSeats < 999999;
     const maxSeatsVal = isLimited ? firstSession.maxSeats : '';
 
-    container.innerHTML = `
-      <div class="card training-form-card">
-        <div class="card-body">
-          <form id="editTrainingForm" novalidate>
-            <!-- ข้อมูลพื้นฐาน -->
-            <div class="form-section">
-              <div class="form-section-title"><i class="fa-solid fa-clipboard-list"></i> ข้อมูลการอบรม</div>
-              <div class="form-grid">
-                <div class="form-group full-width">
-                  <label class="form-label" for="editTrainingTitle">
-                    ชื่อหัวข้อการอบรม <span class="required">*</span>
-                  </label>
-                  <input type="text" id="editTrainingTitle" class="form-control"
-                    value="${t.title || ''}" required maxlength="200">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="editTrainingOrganizer">
-                    หน่วยงานที่จัด <span class="required">*</span>
-                  </label>
-                  <input type="text" id="editTrainingOrganizer" class="form-control"
-                    value="${t.organizer || ''}" required maxlength="200">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="editTrainingLocation">
-                    สถานที่จัด <span class="required">*</span>
-                  </label>
-                  <select id="editTrainingLocation" class="form-control" required>
-                    <option value="">-- กรุณาเลือกสถานที่จัด --</option>
-                    <option value="ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${t.location === 'ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
-                    <option value="ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${t.location === 'ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
-                    <option value="ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${t.location === 'ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
-                  </select>
-                </div>
-              </div>
-              
-              <!-- ตั้งค่าจำนวนคนลงทะเบียน -->
-              <div class="form-grid" style="margin-top: var(--space-4);">
-                <div class="form-group">
-                  <label class="form-label">จำนวนคนลงทะเบียน <span class="required">*</span></label>
-                  <div style="display: flex; gap: var(--space-4); align-items: center; margin-top: var(--space-2); height: 40px;">
-                    <label style="display: flex; align-items: center; gap: var(--space-1); cursor: pointer;">
-                      <input type="radio" name="editCapacityType" value="unlimited" ${!isLimited ? 'checked' : ''}> ไม่จำกัด
-                    </label>
-                    <label style="display: flex; align-items: center; gap: var(--space-1); cursor: pointer;">
-                      <input type="radio" name="editCapacityType" value="limited" ${isLimited ? 'checked' : ''}> จำกัดจำนวนคน
-                    </label>
-                  </div>
-                </div>
-                <div class="form-group ${!isLimited ? 'hidden' : ''}" id="editCapacityLimitGroup">
-                  <label class="form-label" for="editMaxSeatsInput">
-                    จำนวนคนสูงสุด (คน) <span class="required">*</span>
-                  </label>
-                  <input type="number" id="editMaxSeatsInput" class="form-control"
-                    min="1" value="${maxSeatsVal}" placeholder="เช่น 50" ${isLimited ? 'required' : ''}>
-                </div>
+    const content = `
+      <form id="editTrainingForm" novalidate style="text-align: left;">
+        <!-- ข้อมูลพื้นฐาน -->
+        <div class="form-section">
+          <div class="form-section-title"><i class="fa-solid fa-clipboard-list"></i> ข้อมูลการอบรม</div>
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label class="form-label" for="editTrainingTitle">
+                ชื่อหัวข้อการอบรม <span class="required">*</span>
+              </label>
+              <input type="text" id="editTrainingTitle" class="form-control"
+                value="${training.title || ''}" required maxlength="200">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editTrainingOrganizer">
+                หน่วยงานที่จัด <span class="required">*</span>
+              </label>
+              <input type="text" id="editTrainingOrganizer" class="form-control"
+                value="${training.organizer || ''}" required maxlength="200">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editTrainingLocation">
+                สถานที่จัด <span class="required">*</span>
+              </label>
+              <select id="editTrainingLocation" class="form-control" required>
+                <option value="">-- กรุณาเลือกสถานที่จัด --</option>
+                <option value="ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${training.location === 'ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
+                <option value="ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${training.location === 'ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
+                <option value="ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน" ${training.location === 'ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' ? 'selected' : ''}>ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
+              </select>
+            </div>
+          </div>
+          
+          <!-- ตั้งค่าจำนวนคนลงทะเบียน -->
+          <div class="form-grid" style="margin-top: var(--space-4);">
+            <div class="form-group">
+              <label class="form-label">จำนวนคนลงทะเบียน <span class="required">*</span></label>
+              <div style="display: flex; gap: var(--space-4); align-items: center; margin-top: var(--space-2); height: 40px;">
+                <label style="display: flex; align-items: center; gap: var(--space-1); cursor: pointer;">
+                  <input type="radio" name="editCapacityType" value="unlimited" ${!isLimited ? 'checked' : ''}> ไม่จำกัด
+                </label>
+                <label style="display: flex; align-items: center; gap: var(--space-1); cursor: pointer;">
+                  <input type="radio" name="editCapacityType" value="limited" ${isLimited ? 'checked' : ''}> จำกัดจำนวนคน
+                </label>
               </div>
             </div>
-
-            <!-- รอบวันเวลา -->
-            <div class="form-section">
-              <div class="form-section-title"><i class="fa-solid fa-calendar-days"></i> รอบวันและเวลาอบรม</div>
-              <div id="editSessionList" class="session-list"></div>
-              <button type="button" class="add-session-btn" id="editAddSessionBtn">
-                <i class="fa-solid fa-plus"></i> เพิ่มรอบการอบรม
-              </button>
+            <div class="form-group ${!isLimited ? 'hidden' : ''}" id="editCapacityLimitGroup">
+              <label class="form-label" for="editMaxSeatsInput">
+                จำนวนคนสูงสุด (คน) <span class="required">*</span>
+              </label>
+              <input type="number" id="editMaxSeatsInput" class="form-control"
+                min="1" value="${maxSeatsVal}" placeholder="เช่น 50" ${isLimited ? 'required' : ''}>
             </div>
-
-            <div class="form-group" style="margin-top: var(--space-6); display: flex; gap: var(--space-3);">
-              <button type="submit" class="btn btn-primary btn-lg" style="flex: 1;" id="saveBtn">
-                <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข
-              </button>
-              <a href="#/manage" class="btn btn-outline-navy btn-lg" style="flex: 1; text-align: center; line-height: 2.5;">
-                ยกเลิก
-              </a>
-            </div>
-          </form>
+          </div>
         </div>
-      </div>
+
+        <!-- รอบวันเวลา -->
+        <div class="form-section">
+          <div class="form-section-title"><i class="fa-solid fa-calendar-days"></i> รอบวันและเวลาอบรม</div>
+          <div id="editSessionList" class="session-list"></div>
+          <button type="button" class="add-session-btn" id="editAddSessionBtn" style="margin-top: 8px;">
+            <i class="fa-solid fa-plus"></i> เพิ่มรอบการอบรม
+          </button>
+        </div>
+
+        <div class="form-group" style="margin-top: var(--space-6); display: flex; gap: var(--space-3);">
+          <button type="submit" class="btn btn-primary btn-lg" style="flex: 1;" id="saveBtn">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข
+          </button>
+          <button type="button" class="btn btn-outline-navy btn-lg modal-cancel-btn" style="flex: 1;">
+            ยกเลิก
+          </button>
+        </div>
+      </form>
     `;
 
+    const modal = UI.modal({
+      title: `แก้ไขรายละเอียดการอบรม (${training.trainingId})`,
+      content,
+      size: 'lg'
+    });
+
     // Populate existing sessions
-    if (t.sessions && t.sessions.length > 0) {
-      t.sessions.forEach(s => this._addSessionRow(s));
+    if (sessions && sessions.length > 0) {
+      sessions.forEach(s => this._addSessionRow(s));
     } else {
       this._addSessionRow();
     }
 
     // Bind capacity type toggle
-    const capacityRadios = container.querySelectorAll('input[name="editCapacityType"]');
-    const capacityLimitGroup = container.querySelector('#editCapacityLimitGroup');
-    const maxSeatsInput = container.querySelector('#editMaxSeatsInput');
+    const formEl = modal.el.querySelector('#editTrainingForm');
+    const capacityRadios = formEl.querySelectorAll('input[name="editCapacityType"]');
+    const capacityLimitGroup = formEl.querySelector('#editCapacityLimitGroup');
+    const maxSeatsInput = formEl.querySelector('#editMaxSeatsInput');
     
     capacityRadios.forEach(radio => {
       radio.addEventListener('change', (e) => {
@@ -187,8 +148,9 @@ const EditTrainingPage = {
     });
 
     // Bind events
-    document.getElementById('editAddSessionBtn').addEventListener('click', () => this._addSessionRow());
-    document.getElementById('editTrainingForm').addEventListener('submit', (e) => this._handleSubmit(e));
+    formEl.querySelector('#editAddSessionBtn').addEventListener('click', () => this._addSessionRow());
+    formEl.querySelector('.modal-cancel-btn').addEventListener('click', () => modal.close());
+    formEl.addEventListener('submit', (e) => this._handleSubmit(e, training.trainingId, modal, onSaveSuccess));
   },
 
   _addSessionRow(sessionData = null) {
@@ -219,7 +181,7 @@ const EditTrainingPage = {
       endTime = sessionData.endTime || '16:00';
     }
 
-    // If it's a date object/ISO format from spreadsheet, clean to YYYY-MM-DD
+    // Clean to YYYY-MM-DD
     if (startDate && startDate.includes('T')) startDate = startDate.split('T')[0];
     if (endDate && endDate.includes('T')) endDate = endDate.split('T')[0];
 
@@ -307,7 +269,7 @@ const EditTrainingPage = {
     return valid ? sessions : null;
   },
 
-  async _handleSubmit(e) {
+  async _handleSubmit(e, trainingId, modal, onSaveSuccess) {
     e.preventDefault();
 
     const title     = document.getElementById('editTrainingTitle').value.trim();
@@ -324,28 +286,24 @@ const EditTrainingPage = {
       return;
     }
 
-    const btn = document.getElementById('saveBtn');
-    UI.setButtonLoading(btn, true, 'กำลังบันทึก...');
+    // Bug 2: Show loading overlay on Save
+    UI.showLoadingOverlay('กำลังบันทึกการแก้ไข...');
 
     try {
-      await API.updateTraining(this._trainingId, { title, organizer, location, sessions });
+      await API.updateTraining(trainingId, { title, organizer, location, sessions });
+      
+      UI.hideLoadingOverlay();
       UI.success('บันทึกการแก้ไขสำเร็จ!', 'สำเร็จ');
       
-      // Redirect back to manage page
-      setTimeout(() => {
-        Router.navigate(`/manage`);
-      }, 1500);
+      modal.close();
+
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
 
     } catch (err) {
+      UI.hideLoadingOverlay();
       UI.error('ไม่สามารถบันทึกการแก้ไขได้: ' + err.message);
-    } finally {
-      UI.setButtonLoading(btn, false);
     }
-  },
-
-  cleanup() {
-    this._sessionCount = 0;
-    this._trainingId = null;
-    this._trainingData = null;
   }
 };
