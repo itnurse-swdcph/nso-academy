@@ -106,51 +106,59 @@ const HomePage = {
       const trainings = await API.getTrainings();
       this._statsCache = trainings;
 
-      // Update welcome stats
+      // Update welcome stats if they exist in DOM
+      const statTotal = container.querySelector('#statTotal');
+      const statActive = container.querySelector('#statActive');
+      const statToday = container.querySelector('#statToday');
+      
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
       const active = trainings.filter(t => t.status === 'ACTIVE');
       const today  = trainings.filter(t => (t.sessions || []).some(s => (s.sessionDate || '').slice(0, 10) === todayStr));
 
-      container.querySelector('#statTotal').textContent  = trainings.length;
-      container.querySelector('#statActive').textContent = active.length;
-      container.querySelector('#statToday').textContent  = today.length;
+      if (statTotal) statTotal.textContent  = trainings.length;
+      if (statActive) statActive.textContent = active.length;
+      if (statToday) statToday.textContent  = today.length;
 
-      // Update stat cards
+      // Update stat cards if statsGrid exists
       const statsGrid = container.querySelector('#statsGrid');
-      statsGrid.innerHTML = `
-        <div class="stat-card">
-          <div class="stat-icon navy"><i class="fa-solid fa-folder-open"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">${trainings.length}</div>
-            <div class="stat-label">หัวข้ออบรมทั้งหมด</div>
+      if (statsGrid) {
+        statsGrid.innerHTML = `
+          <div class="stat-card">
+            <div class="stat-icon navy"><i class="fa-solid fa-folder-open"></i></div>
+            <div class="stat-info">
+              <div class="stat-value">${trainings.length}</div>
+              <div class="stat-label">หัวข้ออบรมทั้งหมด</div>
+            </div>
           </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon teal"><i class="fa-solid fa-circle-play"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">${active.length}</div>
-            <div class="stat-label">กำลังเปิดรับสมัคร</div>
+          <div class="stat-card">
+            <div class="stat-icon teal"><i class="fa-solid fa-circle-play"></i></div>
+            <div class="stat-info">
+              <div class="stat-value">${active.length}</div>
+              <div class="stat-label">กำลังเปิดรับสมัคร</div>
+            </div>
           </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon success"><i class="fa-solid fa-calendar-days"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">${today.length}</div>
-            <div class="stat-label">อบรมวันนี้</div>
+          <div class="stat-card">
+            <div class="stat-icon success"><i class="fa-solid fa-calendar-days"></i></div>
+            <div class="stat-info">
+              <div class="stat-value">${today.length}</div>
+              <div class="stat-label">อบรมวันนี้</div>
+            </div>
           </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon warning"><i class="fa-solid fa-chart-column"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">${trainings.reduce((s, t) => s + (t.sessionCount || 0), 0)}</div>
-            <div class="stat-label">รอบการอบรมทั้งหมด</div>
+          <div class="stat-card">
+            <div class="stat-icon warning"><i class="fa-solid fa-chart-column"></i></div>
+            <div class="stat-info">
+              <div class="stat-value">${trainings.reduce((s, t) => s + (t.sessionCount || 0), 0)}</div>
+              <div class="stat-label">รอบการอบรมทั้งหมด</div>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
 
       // Recent trainings list
       const recentEl = container.querySelector('#recentTrainings');
+      if (!recentEl) return;
+
       if (!trainings.length) {
         UI.showEmpty(recentEl, {
           icon: '<i class="fa-solid fa-clipboard-list"></i>',
@@ -206,8 +214,10 @@ const HomePage = {
     } catch (err) {
       const statsGrid = container.querySelector('#statsGrid');
       const recentEl  = container.querySelector('#recentTrainings');
-      statsGrid.innerHTML = '';
-      UI.showError(recentEl, 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, () => this._loadData(container));
+      if (statsGrid) statsGrid.innerHTML = '';
+      if (recentEl) {
+        UI.showError(recentEl, 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, () => this._loadData(container));
+      }
     }
   },
 
