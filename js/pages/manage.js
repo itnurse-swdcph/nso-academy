@@ -84,15 +84,15 @@ const ManagePage = {
         UI.success('ออกจากระบบแอดมินแล้ว');
         this._renderGate(container);
       } else {
-        const password = prompt('กรุณากรอกรหัสผ่านสำหรับแอดมิน:');
-        if (password === null) return;
-        if (password === '11450') {
-          Utils.storage.set('admin_logged_in', true);
-          UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
-          this._renderGate(container);
-        } else {
-          UI.error('รหัสผ่านไม่ถูกต้อง');
-        }
+        UI.promptAdminLogin((password) => {
+          return password === '11450';
+        }).then((success) => {
+          if (success) {
+            Utils.storage.set('admin_logged_in', true);
+            UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
+            this._renderGate(container);
+          }
+        });
       }
     });
   },
