@@ -213,7 +213,8 @@ const HomePage = {
 
   _handleEditClick(id) {
     const unlockInfo = Utils.storage.get('mgmt_unlock');
-    if (unlockInfo && unlockInfo.trainingId === id) {
+    const isAdmin = Utils.storage.get('admin_logged_in') === true;
+    if (isAdmin || (unlockInfo && unlockInfo.trainingId === id)) {
       EditTrainingPage.open(id, () => this._loadData(this._container));
       return;
     }
