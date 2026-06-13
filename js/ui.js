@@ -234,6 +234,38 @@ const UI = {
     `;
   },
 
+  showLoadingOverlay(message = 'กำลังโหลดข้อมูล...') {
+    let overlay = document.getElementById('global-loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'global-loading-overlay';
+      overlay.className = 'modal-overlay show';
+      overlay.style.zIndex = '9999';
+      overlay.style.background = 'rgba(0, 0, 0, 0.4)';
+      overlay.innerHTML = `
+        <div style="background: var(--white); padding: var(--space-6) var(--space-8); border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); box-shadow: var(--shadow-lg); max-width: 90%; text-align: center;">
+          <div class="spinner"></div>
+          <span style="font-weight: var(--fw-semi); color: var(--navy-800);" id="global-loading-text">${message}</span>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    } else {
+      const textEl = document.getElementById('global-loading-text');
+      if (textEl) textEl.textContent = message;
+      overlay.classList.add('show');
+    }
+    document.body.style.overflow = 'hidden';
+  },
+
+  hideLoadingOverlay() {
+    const overlay = document.getElementById('global-loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('show');
+      overlay.remove();
+    }
+    document.body.style.overflow = '';
+  },
+
   // ── Empty State ───────────────────────────────────────────────
   showEmpty(container, { icon = '<i class="fa-solid fa-box-open"></i>', title = 'ไม่มีข้อมูล', desc = '', action = null } = {}) {
     container.innerHTML = `
