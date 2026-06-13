@@ -175,6 +175,7 @@ const HomePage = {
               <span class="badge ${t.status === 'ACTIVE' ? 'badge-success' : 'badge-gray'}">${t.status === 'ACTIVE' ? '<i class="fa-solid fa-lock-open text-success"></i> เปิด' : '<i class="fa-solid fa-lock text-muted"></i> ปิด'}</span>
               <div style="display:flex; gap: 6px; align-items:center;">
                 <button class="btn btn-outline-navy btn-sm qr-btn" data-id="${t.trainingId}" data-title="${t.title}" title="สร้าง QR Code สำหรับลงทะเบียน" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-qrcode"></i></button>
+                <button class="btn btn-outline-navy btn-sm edit-btn" data-id="${t.trainingId}" title="แก้ไขข้อมูลการอบรม" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-pen-to-square"></i></button>
                 <a href="#/register?id=${t.trainingId}" class="btn btn-outline-teal btn-sm">ลงทะเบียน</a>
               </div>
             </div>
@@ -192,11 +193,83 @@ const HomePage = {
         });
       });
 
+      recentEl.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          this._handleEditClick(id);
+        });
+      });
+
     } catch (err) {
       const statsGrid = container.querySelector('#statsGrid');
       const recentEl  = container.querySelector('#recentTrainings');
       statsGrid.innerHTML = '';
       UI.showError(recentEl, 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, () => this._loadData(container));
+    }
+  },
+
+  _handleEditClick(id) {
+    const unlockInfo = Utils.storage.get('mgmt_unlock');
+    if (unlockInfo && unlockInfo.trainingId === id) {
+      Router.navigate(`/edit?id=${id}`);
+      return;
+    }
+
+    const content = `
+      <div style="padding: var(--space-4); text-align: center;">
+        <div style="font-size: 2.5rem; margin-bottom: var(--space-3); color: var(--navy-700);"><i class="fa-solid fa-lock"></i></div>
+        <p style="margin-bottom: var(--space-4); font-size: var(--text-sm); color: var(--gray-600);">กรุณากรอกรหัสผู้ดูแล (Management Code) เพื่อทำการแก้ไข</p>
+        <div class="form-group" style="text-align: left; margin-bottom: var(--space-4);">
+          <input type="text" id="modalMgmtCodeInput" class="form-control" placeholder="รหัสผู้ดูแล 6 หลัก" maxlength="12" style="text-transform:uppercase; letter-spacing:0.2em; text-align:center; font-size: var(--text-lg);">
+        </div>
+        <button class="btn btn-primary btn-block" id="modalUnlockBtn">ยืนยันรหัสผ่าน</button>
+        <div id="modalUnlockError" class="alert alert-danger hidden" style="margin-top: var(--space-3);">
+          รหัสไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง
+        </div>
+      </div>
+    `;
+
+    UI.modal({
+      title: 'สิทธิ์การแก้ไขข้อมูล',
+      content,
+      size: 'sm'
+    });
+
+    const codeInput = document.getElementById('modalMgmtCodeInput');
+    if (codeInput) {
+      codeInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      });
+    }
+
+    const unlockBtn = document.getElementById('modalUnlockBtn');
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', async () => {
+        const code = codeInput.value.trim();
+        if (!code) { UI.warning('กรุณาใส่รหัสผู้ดูแล'); return; }
+
+        const errEl = document.getElementById('modalUnlockError');
+        UI.setButtonLoading(unlockBtn, true, 'กำลังตรวจสอบ...');
+        errEl.classList.add('hidden');
+
+        try {
+          await API.validateCode(id, code);
+          Utils.storage.set('mgmt_unlock', { trainingId: id, code });
+          
+          // Close modal
+          const modal = document.getElementById('modal-container');
+          if (modal) modal.innerHTML = '';
+
+          UI.success('เข้าสู่ระบบสำเร็จ');
+          Router.navigate(`/edit?id=${id}`);
+        } catch (err) {
+          errEl.classList.remove('hidden');
+        } finally {
+          UI.setButtonLoading(unlockBtn, false);
+        }
+      });
     }
   },
 
