@@ -329,3 +329,4 @@ const HomePage = {
   cleanup() {
     this._statsCache = null;
   }
+};
