@@ -305,5 +305,110 @@ const UI = {
     if (retryFn) {
       container.querySelector('#retryBtn')?.addEventListener('click', retryFn);
     }
+  },
+
+  /**
+   * Custom Admin Login Modal Prompt
+   * @param {function} validateFn - Callback returning Promise<boolean> or boolean
+   * @returns {Promise<boolean>}
+   */
+  promptAdminLogin(validateFn) {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const m = this.modal({
+        title: 'เข้าสู่ระบบสำหรับแอดมิน',
+        content: `
+          <div class="admin-login-modal-body" style="text-align: center; padding: var(--space-4) 0;">
+            <div style="font-size: 3.5rem; color: var(--navy-500); margin-bottom: var(--space-4);">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <p style="color: var(--gray-600); font-size: var(--text-sm); margin-bottom: var(--space-5);">
+              กรุณากรอกรหัสผ่านผู้ดูแลระบบ (Admin Password) เพื่อเข้าใช้งานระบบจัดการสูงสุด
+            </p>
+            <div class="form-group" style="text-align: left; max-width: 320px; margin: 0 auto;">
+              <label class="form-label" for="adminPasswordInput" style="font-weight: var(--fw-medium);">รหัสผ่านแอดมิน</label>
+              <div class="input-group">
+                <input type="password" id="adminPasswordInput" class="form-control" placeholder="••••••••" style="letter-spacing: 0.2em; font-size: var(--text-lg); text-align: center; border-right: none;">
+                <button class="input-group-btn" id="toggleAdminPasswordBtn" type="button" style="border: 1.5px solid var(--gray-300); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; background: var(--gray-50); color: var(--gray-500); width: 44px; display: flex; align-items: center; justify-content: center;">
+                  <i class="fa-solid fa-eye"></i>
+                </button>
+              </div>
+              <div id="adminLoginModalError" class="alert alert-danger hidden" style="margin-top: var(--space-3); padding: var(--space-2) var(--space-3); font-size: var(--text-xs);">
+                <span class="alert-icon"><i class="fa-solid fa-circle-xmark"></i></span>
+                <div class="alert-content">รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง</div>
+              </div>
+            </div>
+          </div>
+        `,
+        footer: `
+          <button class="btn btn-ghost" id="adminLoginCancelBtn">ยกเลิก</button>
+          <button class="btn btn-primary" id="adminLoginSubmitBtn">เข้าสู่ระบบ</button>
+        `,
+        onClose: () => {
+          if (!resolved) {
+            resolved = true;
+            resolve(false);
+          }
+        }
+      });
+
+      const passInput = m.el.querySelector('#adminPasswordInput');
+      const toggleBtn = m.el.querySelector('#toggleAdminPasswordBtn');
+      const errorEl = m.el.querySelector('#adminLoginModalError');
+      const submitBtn = m.el.querySelector('#adminLoginSubmitBtn');
+      const cancelBtn = m.el.querySelector('#adminLoginCancelBtn');
+
+      // Focus input
+      setTimeout(() => {
+        if (passInput) passInput.focus();
+      }, 150);
+
+      toggleBtn.addEventListener('click', () => {
+        if (passInput.type === 'password') {
+          passInput.type = 'text';
+          toggleBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        } else {
+          passInput.type = 'password';
+          toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+        }
+      });
+
+      const handleLogin = async () => {
+        const password = passInput.value.trim();
+        if (!password) {
+          errorEl.querySelector('.alert-content').textContent = 'กรุณากรอกรหัสผ่าน';
+          errorEl.classList.remove('hidden');
+          return;
+        }
+
+        UI.setButtonLoading(submitBtn, true, 'กำลังตรวจสอบ...');
+        errorEl.classList.add('hidden');
+
+        try {
+          const isValid = await validateFn(password);
+          if (isValid) {
+            resolved = true;
+            resolve(true);
+            m.close();
+          } else {
+            errorEl.querySelector('.alert-content').textContent = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+            errorEl.classList.remove('hidden');
+            passInput.value = '';
+            passInput.focus();
+          }
+        } catch (e) {
+          errorEl.querySelector('.alert-content').textContent = 'เกิดข้อผิดพลาดในการตรวจสอบรหัสผ่าน';
+          errorEl.classList.remove('hidden');
+        } finally {
+          UI.setButtonLoading(submitBtn, false);
+        }
+      };
+
+      submitBtn.addEventListener('click', handleLogin);
+      cancelBtn.addEventListener('click', () => m.close());
+      passInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleLogin();
+      });
+    });
   }
 };
