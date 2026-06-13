@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nso-academy-cache-v1';
+const CACHE_NAME = 'nso-academy-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const ASSETS = [
   './js/app.js',
   './js/pages/home.js',
   './js/pages/create-training.js',
+  './js/pages/edit-training.js',
   './js/pages/register.js',
   './js/pages/verify.js',
   './js/pages/manage.js',
