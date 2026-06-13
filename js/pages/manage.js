@@ -134,6 +134,11 @@ const ManagePage = {
         </div>
 
         <div class="management-nav-grid">
+          <a href="#/edit?id=${trainingId}" class="management-nav-card">
+            <div class="nav-card-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+            <div class="nav-card-title">แก้ไขหัวข้ออบรม</div>
+            <div class="nav-card-desc">แก้ไขชื่อหัวข้อ สถานที่จัด และรอบการอบรม</div>
+          </a>
           <a href="#/pretest?id=${trainingId}" class="management-nav-card">
             <div class="nav-card-icon"><i class="fa-solid fa-file-circle-question"></i></div>
             <div class="nav-card-title">Pre-test</div>
