@@ -1,6 +1,6 @@
 /**
  * manage.js — Module 4: Management Hub
- * รหัสผ่าน access gate + เมนูจัดการ 4 โมดูล พร้อมฟีเจอร์ Admin Verification
+ * ส่วนขยายฟังก์ชัน: ตรวจสอบรายชื่อสำหรับแอดมิน (เวอร์ชันแก้ไข Bug และจัดกลุ่มข้อมูลใหม่)
  */
 
 const ManagePage = {
@@ -55,12 +55,6 @@ const ManagePage = {
             <span class="alert-icon"><i class="fa-solid fa-circle-xmark"></i></span>
             <div class="alert-content">รหัสไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง</div>
           </div>
-          
-          ${isAdmin ? `
-            <div style="text-align:center; margin-top: var(--space-3); color: var(--teal-600); font-size: var(--text-xs); font-weight: var(--fw-semi);">
-              <i class="fa-solid fa-circle-check"></i> เข้าสู่ระบบด้วยสิทธิ์ผู้ดูแลระบบสูงสุด (Admin)
-            </div>
-          ` : ''}
         </div>
       </div>
     `;
@@ -83,7 +77,7 @@ const ManagePage = {
         this._renderGate(container);
       } else {
         UI.promptAdminLogin((password) => {
-          return password === '11450'; // รหัสแอดมิน (สามารถเปลี่ยนได้)
+          return password === '11450';
         }).then((success) => {
           if (success) {
             Utils.storage.set('admin_logged_in', true);
@@ -125,7 +119,6 @@ const ManagePage = {
       this._unlockedTrainingId = trainingId;
       this._unlockedCode = 'ADMIN';
       await this._renderManagementHub(container, trainingId);
-      UI.success('เข้าสู่ระบบสำเร็จ', 'ยินดีต้อนรับ (สิทธิ์แอดมิน)');
       return;
     }
 
@@ -140,9 +133,7 @@ const ManagePage = {
       Utils.storage.set('mgmt_unlock', { trainingId, code });
       this._unlockedTrainingId = trainingId;
       this._unlockedCode = code;
-
       await this._renderManagementHub(container, trainingId);
-      UI.success('เข้าสู่ระบบสำเร็จ', 'ยินดีต้อนรับ');
     } catch (err) {
       errEl.classList.remove('hidden');
     } finally {
@@ -198,7 +189,6 @@ const ManagePage = {
             <div class="nav-card-title">อนุมัติ & วิเคราะห์</div>
             <div class="nav-card-desc">อนุมัติผู้เข้าอบรม วิเคราะห์ผลการเรียนรู้</div>
           </a>
-          
           <a href="#" class="management-nav-card" id="mgmtAdminVerifyBtn" style="border-color: var(--teal-500); background-color: var(--teal-50);">
             <div class="nav-card-icon" style="color: var(--teal-600);"><i class="fa-solid fa-users-gear"></i></div>
             <div class="nav-card-title">ตรวจสอบรายชื่อ (Admin)</div>
@@ -235,12 +225,10 @@ const ManagePage = {
     });
   },
 
-  // ==========================================
-  // ส่วนที่ 2: ระบบตรวจสอบรายชื่อสำหรับแอดมิน
-  // ==========================================
-
+  // ===================================================
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข Bug)
+  // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
-    // โหลด UI Placeholder ระหว่างรอข้อมูล
     container.innerHTML = `
       <div class="animate-fade-in">
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
@@ -252,7 +240,7 @@ const ManagePage = {
         </div>
         <div id="adminVerifyContent" style="text-align:center; padding: var(--space-8);">
           <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลผู้ลงทะเบียน...</p>
+          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลจากชีต REGISTRATIONS...</p>
         </div>
       </div>
     `;
@@ -262,7 +250,7 @@ const ManagePage = {
     });
 
     try {
-      // ใช้ API.getParticipants เพื่อดึงรายชื่อผู้สมัคร (อิงจากโครงสร้างมาตรฐานของ NSO-Academy)
+      // เรียกดึงข้อมูลรายชื่อ (API ดึงตามเงื่อนไขของ trainingId)
       const participants = await API.getParticipants(trainingId);
       
       if (!participants || participants.length === 0) {
@@ -270,12 +258,12 @@ const ManagePage = {
           <div class="empty-state">
             <div class="empty-icon"><i class="fa-solid fa-users-slash"></i></div>
             <h3>ยังไม่มีผู้ลงทะเบียน</h3>
-            <p>ยังไม่มีข้อมูลผู้ลงทะเบียนในระบบสำหรับหลักสูตรนี้</p>
+            <p>ไม่พบข้อมูลการลงทะเบียนในระบบสำหรับหลักสูตรนี้</p>
           </div>`;
         return;
       }
 
-      // Logic จำแนกกลุ่มตำแหน่งและจัดกลุ่มรายชื่อตามรอบวันที่อบรม
+      // โครงสร้างสำหรับเก็บสถิติตำแหน่งงาน
       const positionStats = {
         'พยาบาลวิชาชีพ': 0,
         'เจ้าพนักงานสาธารณสุข': 0,
@@ -287,32 +275,33 @@ const ManagePage = {
         'ตำแหน่งอื่นๆ': 0
       };
 
+      // จุดแก้ไขที่ 2: สร้าง Object เพื่อใช้ในการจัดกลุ่มด้วย 'sessionId'
       const sessionGroups = {};
 
       participants.forEach(p => {
-        // ประมวลผลหมวดหมู่ตำแหน่ง
+        // ประมวลผลหมวดหมู่สถิติ
         const posGroup = this._categorizePosition(p.position || '');
         positionStats[posGroup] += 1;
 
-        // จัดกลุ่มตามรอบ/วันที่ (รองรับทั้งฟิลด์ sessionDateThai หรือ sessionDate)
-        const sessionName = p.sessionDateThai || p.sessionDate || 'รอบทั่วไป';
-        if (!sessionGroups[sessionName]) {
-          sessionGroups[sessionName] = [];
+        // จัดกลุ่มตาม sessionId (หากไม่มี ให้จัดเข้ากลุ่ม ทั่วไป)
+        const sId = p.sessionId || 'ทั่วไป';
+        if (!sessionGroups[sId]) {
+          sessionGroups[sId] = [];
         }
-        sessionGroups[sessionName].push(p);
+        sessionGroups[sId].push(p);
       });
 
-      // สร้าง HTML สำหรับ Summary Cards
+      // สร้าง Dashboard แสดงผลสรุปยอด
       const totalParticipants = participants.length;
       let statsHtml = `
         <div class="card" style="margin-bottom: var(--space-6);">
           <div class="card-body">
-            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); border-bottom: 2px solid var(--gray-200); padding-bottom: var(--space-2);">สรุปข้อมูลผู้ลงทะเบียนทั้งหมด: <span class="text-teal">${totalParticipants}</span> คน</h3>
+            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); border-bottom: 2px solid var(--gray-200); padding-bottom: var(--space-2);">สรุปยอดผู้ลงทะเบียนรวมจากฐานข้อมูล: <span class="text-teal">${totalParticipants}</span> คน</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3);">
       `;
       
       Object.entries(positionStats).forEach(([key, count]) => {
-        if (count > 0 || key === 'พยาบาลวิชาชีพ') { // แสดงหมวดพยาบาลวิชาชีพเสมอเผื่อเป็นฐานข้อมูลหลัก
+        if (count > 0 || key === 'พยาบาลวิชาชีพ') {
           statsHtml += `
             <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: var(--text-sm); color: var(--gray-700);">${key}</span>
@@ -323,36 +312,39 @@ const ManagePage = {
       });
       statsHtml += `</div></div></div>`;
 
-      // สร้าง HTML สำหรับ Data Table และปุ่ม Export
+      // จุดแก้ไขที่ 2 & 3: วนลูปสร้างตารางแยกตามกลุ่ม sessionId และตกแต่งสีสันหัวตาราง
       let tablesHtml = `<div>`;
-      Object.entries(sessionGroups).forEach(([sessionDate, list], index) => {
+      Object.entries(sessionGroups).forEach(([sId, list]) => {
         tablesHtml += `
-          <div class="card" style="margin-bottom: var(--space-5);">
+          <div class="card" style="margin-bottom: var(--space-5); border-top: 3px solid var(--navy-500);">
             <div class="card-body">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-3); flex-wrap:wrap; gap: var(--space-2);">
-                <h4 style="color: var(--navy-700); margin: 0;"><i class="fa-regular fa-calendar-check"></i> รอบการอบรม: ${sessionDate} <span style="font-size:var(--text-sm); font-weight:normal; color:var(--gray-500);">(${list.length} คน)</span></h4>
-                <button class="btn btn-teal btn-sm print-sheet-btn" data-session="${sessionDate}" data-index="${index}">
-                  <i class="fa-solid fa-print"></i> พิมพ์ใบเซ็นชื่อ
+                <h4 style="color: var(--navy-700); margin: 0; font-weight: var(--fw-bold);">
+                  <i class="fa-solid fa-folder-open text-teal"></i> รอบการอบรม (Session ID): ${sId} 
+                  <span style="font-size:var(--text-sm); font-weight:normal; color:var(--gray-500); margin-left:8px;">(${list.length} คน)</span>
+                </h4>
+                <button class="btn btn-teal btn-sm print-sheet-btn" data-session="${sId}">
+                  <i class="fa-solid fa-print"></i> พิมพ์ใบเซ็นชื่อรอบนี้
                 </button>
               </div>
               
-              <div style="overflow-x: auto;">
-                <table class="table" style="width: 100%; min-width: 600px; border-collapse: collapse;">
-                  <thead style="background: var(--gray-100); border-bottom: 2px solid var(--gray-300);">
+              <div style="overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--gray-200);">
+                <table class="table" style="width: 100%; min-width: 600px; border-collapse: collapse; margin: 0;">
+                  <thead style="background-color: var(--navy-700); color: var(--white); border-bottom: 2px solid var(--navy-800);">
                     <tr>
-                      <th style="padding: var(--space-2); text-align: center; width: 60px;">ลำดับ</th>
-                      <th style="padding: var(--space-2); text-align: left;">ชื่อ-นามสกุล</th>
-                      <th style="padding: var(--space-2); text-align: left;">ตำแหน่ง</th>
-                      <th style="padding: var(--space-2); text-align: left;">หน่วยงาน/สังกัด</th>
+                      <th style="padding: var(--space-3); text-align: center; width: 70px; color: var(--white); font-weight: var(--fw-semi);">ลำดับ</th>
+                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">ชื่อ-นามสกุล</th>
+                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">ตำแหน่ง</th>
+                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">หน่วยงาน/สังกัด</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${list.map((p, i) => `
-                      <tr style="border-bottom: 1px solid var(--gray-200);">
-                        <td style="padding: var(--space-2); text-align: center;">${i + 1}</td>
-                        <td style="padding: var(--space-2);">${p.prefix || ''}${p.firstName || ''} ${p.lastName || ''}</td>
-                        <td style="padding: var(--space-2);">${p.position || '-'}</td>
-                        <td style="padding: var(--space-2);">${p.department || '-'}</td>
+                      <tr style="border-bottom: 1px solid var(--gray-200); background: ${i % 2 === 0 ? 'var(--white)' : 'var(--gray-50)'};">
+                        <td style="padding: var(--space-2-5); text-align: center; color: var(--gray-500);">${i + 1}</td>
+                        <td style="padding: var(--space-2-5); font-weight: var(--fw-medium); color: var(--gray-800);">${p.fullName || '-'}</td>
+                        <td style="padding: var(--space-2-5); color: var(--gray-700);">${p.position || '-'}</td>
+                        <td style="padding: var(--space-2-5); color: var(--gray-700);">${p.department || '-'}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -364,17 +356,17 @@ const ManagePage = {
       });
       tablesHtml += `</div>`;
 
-      // Render ลงหน้าจอ
       const contentDiv = document.getElementById('adminVerifyContent');
       contentDiv.innerHTML = statsHtml + tablesHtml;
       contentDiv.style.padding = '0';
       contentDiv.style.textAlign = 'left';
 
-      // Bind Event สำหรับปุ่มพิมพ์เอกสาร
+      // จัดการ Event สำหรับปุ่มพิมพ์ใบเซ็นชื่อตามกลุ่มรอบอบรมที่กด
       document.querySelectorAll('.print-sheet-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          const sessionName = e.target.closest('button').dataset.session;
-          this._printSignInSheet(title, sessionName, sessionGroups[sessionName]);
+          const currentBtn = e.target.closest('.print-sheet-btn');
+          const sessionKey = currentBtn.dataset.session;
+          this._printSignInSheet(title, sessionKey, sessionGroups[sessionKey]);
         });
       });
 
@@ -382,7 +374,7 @@ const ManagePage = {
       console.error(err);
       document.getElementById('adminVerifyContent').innerHTML = `
         <div class="alert alert-danger">
-          <i class="fa-solid fa-circle-exclamation"></i> ไม่สามารถดึงข้อมูลรายชื่อได้: ${err.message}
+          <i class="fa-solid fa-circle-exclamation"></i> ไม่สามารถประมวลผลข้อมูลรายชื่อได้: ${err.message}
         </div>`;
     }
   },
@@ -409,14 +401,13 @@ const ManagePage = {
     return 'ตำแหน่งอื่นๆ';
   },
 
-  _printSignInSheet(courseTitle, sessionName, participantsList) {
+  _printSignInSheet(courseTitle, sessionId, participantsList) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       UI.error('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาอนุญาต Pop-up บนเบราว์เซอร์');
       return;
     }
 
-    // สร้างโครงสร้าง HTML สำหรับเอกสาร Print แบบสะอาดตา (Minimal & Professional)
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="th">
@@ -433,10 +424,10 @@ const ManagePage = {
           }
           .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
           }
-          .header h2 { margin: 0 0 10px 0; font-size: 18px; }
-          .header h3 { margin: 0 0 15px 0; font-size: 16px; font-weight: 500; color: #555; }
+          .header h2 { margin: 0 0 8px 0; font-size: 19px; }
+          .header h3 { margin: 0 0 15px 0; font-size: 15px; font-weight: 500; color: #444; }
           table {
             width: 100%;
             border-collapse: collapse;
@@ -448,31 +439,31 @@ const ManagePage = {
             vertical-align: middle;
           }
           th {
-            background-color: #f5f5f5;
+            background-color: #f2f2f2;
             font-weight: 600;
             text-align: center;
           }
           .col-no { width: 50px; text-align: center; }
-          .col-name { width: 25%; }
-          .col-pos { width: 15%; }
-          .col-dep { width: 15%; }
-          .col-sign { width: 20%; }
+          .col-name { width: 28%; }
+          .col-pos { width: 18%; }
+          .col-dep { width: 18%; }
+          .col-sign { width: 18%; }
           @media print {
-            @page { size: A4 portrait; margin: 15mm; }
             body { padding: 0; }
             .no-print { display: none; }
+            @page { size: A4 portrait; margin: 12mm; }
           }
         </style>
       </head>
       <body>
-        <div class="no-print" style="text-align:right; margin-bottom: 10px;">
-          <button onclick="window.print()" style="padding: 8px 16px; font-size: 14px; cursor: pointer; background: #0d9488; color: white; border: none; border-radius: 4px; font-family: 'Sarabun';">🖨️ พิมพ์เอกสาร</button>
+        <div class="no-print" style="text-align:right; margin-bottom: 15px;">
+          <button onclick="window.print()" style="padding: 8px 18px; font-size: 14px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 4px; font-family: 'Sarabun'; font-weight: 500;">🖨️ พิมพ์เอกสารใบลงทะเบียน</button>
         </div>
         
         <div class="header">
           <h2>ใบลงทะเบียนเข้ารับการอบรม</h2>
           <h2>เรื่อง: ${courseTitle}</h2>
-          <h3>วันที่อบรม: ${sessionName}</h3>
+          <h3>รอบการอบรม (Session ID): ${sessionId}</h3>
         </div>
 
         <table>
@@ -490,7 +481,7 @@ const ManagePage = {
             ${participantsList.map((p, i) => `
               <tr>
                 <td class="col-no">${i + 1}</td>
-                <td class="col-name">${p.prefix || ''}${p.firstName || ''} ${p.lastName || ''}</td>
+                <td class="col-name">${p.fullName || '-'}</td>
                 <td class="col-pos">${p.position || '-'}</td>
                 <td class="col-dep">${p.department || '-'}</td>
                 <td class="col-sign"></td>
@@ -501,8 +492,7 @@ const ManagePage = {
         </table>
         
         <script>
-          // สั่งพิมพ์อัตโนมัติเมื่อเอกสารพร้อม
-          window.onload = () => { setTimeout(() => window.print(), 500); }
+          window.onload = () => { setTimeout(() => window.print(), 300); }
         </script>
       </body>
       </html>
@@ -513,9 +503,6 @@ const ManagePage = {
     printWindow.document.close();
   },
 
-  // ==========================================
-  // Helper / Utility functions (เดิม)
-  // ==========================================
   _showQRModal(id, title) {
     const url = Utils.buildRegisterUrl(id);
     const content = `
