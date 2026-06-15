@@ -452,8 +452,9 @@ const Utils = {
     }, 1000);
   },
 
-  /**
+ /**
    * สร้าง HTML สำหรับใบเซ็นชื่อ (เอกสารราชการสไตล์ไทย)
+   * รองรับการพิมพ์แนวนอน (Landscape) และแสดงหัวกระดาษซ้ำทุกหน้า
    */
   buildAttendanceHTML(training, session, registrations) {
     const sessionDateStr = session.sessionDate
@@ -472,7 +473,7 @@ const Utils = {
       if (reg.department !== lastDept) {
         rows += `
           <tr>
-            <td colspan="5" style="background:#e8e8e8; font-weight:700; font-size:11pt; padding:6pt 8pt;">
+            <td colspan="5" style="background:#f3f4f6; font-weight:bold; font-size:12pt; padding:8px 12px; border:1px solid #333;">
               หน่วยงาน: ${reg.department || '-'}
             </td>
           </tr>`;
@@ -480,38 +481,58 @@ const Utils = {
       }
       rows += `
         <tr>
-          <td style="text-align:center;">${no++}</td>
-          <td>${reg.fullName || '-'}</td>
-          <td>${reg.position || '-'}</td>
-          <td>${reg.department || '-'}</td>
-          <td style="text-align:center;">&nbsp;</td>
+          <td style="text-align:center; padding:8px; border:1px solid #333;">${no++}</td>
+          <td style="padding:8px; border:1px solid #333;">${reg.fullName || '-'}</td>
+          <td style="padding:8px; border:1px solid #333;">${reg.position || '-'}</td>
+          <td style="padding:8px; border:1px solid #333;">${reg.department || '-'}</td>
+          <td style="text-align:center; padding:8px; border:1px solid #333;"></td>
         </tr>`;
     });
 
     return `
-      <div class="print-doc">
-        <div class="print-doc-header">
-          <div class="print-doc-title">${training.title || 'หัวข้อการอบรม'}</div>
-          <div class="print-doc-subtitle">
-            วันที่ ${sessionDateStr} &nbsp;|&nbsp;
-            เวลา ${Utils.formatTime(session.startTime)} – ${Utils.formatTime(session.endTime)} น. &nbsp;|&nbsp;
-            สถานที่ ${training.location || '-'}
-          </div>
-        </div>
-        <table class="print-table" width="100%">
+      <div style="font-family: 'Sarabun', sans-serif; color: #000; background: #fff;">
+        <style>
+          @media print {
+            @page { size: A4 landscape; margin: 15mm; }
+            body { -webkit-print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
+          }
+          .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11pt; }
+          .print-table th, .print-table td { border: 1px solid #000; }
+          .print-header-content { text-align: center; margin-bottom: 15px; }
+          .print-header-content h2 { font-size: 16pt; font-weight: bold; margin: 0 0 5px 0; }
+          .print-header-content h3 { font-size: 14pt; font-weight: normal; margin: 0 0 5px 0; }
+        </style>
+
+        <table class="print-table">
           <thead>
             <tr>
-              <th style="width:40pt; text-align:center;">ที่</th>
-              <th>ชื่อ-นามสกุล</th>
-              <th style="width:120pt;">ตำแหน่ง</th>
-              <th style="width:130pt;">หน่วยงาน</th>
-              <th class="signature-col" style="text-align:center;">ลายมือชื่อ</th>
+              <td colspan="5" style="border: none; padding-bottom: 15px;">
+                <div class="print-header-content">
+                  <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
+                  <h2>เรื่อง: ${training.title || 'หัวข้อการอบรม'}</h2>
+                  <h3>รอบวันที่ ${sessionDateStr} เวลา ${Utils.formatTime(session.startTime)} – ${Utils.formatTime(session.endTime)} น. ณ ${training.location || '-'}</h3>
+                </div>
+              </td>
+            </tr>
+            <tr style="background:#e5e7eb; font-weight:bold; text-align:center;">
+              <th style="width: 5%; padding: 10px; border: 1px solid #333;">ลำดับ</th>
+              <th style="width: 25%; padding: 10px; border: 1px solid #333;">ชื่อ - นามสกุล</th>
+              <th style="width: 20%; padding: 10px; border: 1px solid #333;">ตำแหน่ง</th>
+              <th style="width: 20%; padding: 10px; border: 1px solid #333;">หน่วยงาน/สังกัด</th>
+              <th style="width: 30%; padding: 10px; border: 1px solid #333;">ลายมือชื่อ</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>
+            ${rows}
+          </tbody>
         </table>
-        <div style="margin-top:20pt; font-size:11pt; color:#666;">
-          จำนวนผู้เข้าอบรมทั้งหมด: ${registrations.length} ท่าน
+        
+        <div style="margin-top: 15px; text-align: right; font-size: 11pt;">
+          <strong>รวมจำนวนผู้เข้าอบรมทั้งหมด: ${registrations.length} ท่าน</strong>
         </div>
       </div>
     `;
