@@ -1,6 +1,6 @@
 /**
  * manage.js — Module 4: Management Hub
- * ส่วนขยายฟังก์ชัน: ตรวจสอบรายชื่อสำหรับแอดมิน (เวอร์ชันแก้ไข Bug และจัดกลุ่มข้อมูลใหม่)
+ * ส่วนขยายฟังก์ชัน: ตรวจสอบรายชื่อสำหรับแอดมิน (เวอร์ชันแก้ไข Bug กรองข้อมูลตามหัวข้ออบรมปัจจุบัน)
  */
 
 const ManagePage = {
@@ -226,7 +226,7 @@ const ManagePage = {
   },
 
   // ===================================================
-  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข Bug)
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เพิ่ม Logic กรองข้อมูล)
   // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
     container.innerHTML = `
@@ -240,7 +240,7 @@ const ManagePage = {
         </div>
         <div id="adminVerifyContent" style="text-align:center; padding: var(--space-8);">
           <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลลงทะเบียน...</p>
+          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลและจำแนกรายชื่อจากระบบ...</p>
         </div>
       </div>
     `;
@@ -250,8 +250,11 @@ const ManagePage = {
     });
 
     try {
-      // เรียกดึงข้อมูลรายชื่อ (API ดึงตามเงื่อนไขของ trainingId)
-      const participants = await API.getParticipants(trainingId);
+      // ดึงข้อมูลรายชื่อจากฐานข้อมูล (สมมติฐานว่า API ส่งมาทั้งหมด)
+      const allRegistrations = await API.getParticipants(trainingId);
+      
+      // จุดแก้ไขสำคัญที่ 1 & 2: ทำการ Filter ให้เหลือเฉพาะแถวที่มี trainingId ตรงกับหน้าจัดการปัจจุบันเท่านั้น
+      const participants = (allRegistrations || []).filter(p => String(p.trainingId) === String(trainingId));
       
       if (!participants || participants.length === 0) {
         document.getElementById('adminVerifyContent').innerHTML = `
@@ -275,28 +278,28 @@ const ManagePage = {
         'ตำแหน่งอื่นๆ': 0
       };
 
-      // จุดแก้ไขที่ 2: สร้าง Object เพื่อใช้ในการจัดกลุ่มด้วย 'sessionId'
+      // โครงสร้าง Object เพื่อใช้ในการจัดกลุ่มด้วย 'sessionId'
       const sessionGroups = {};
 
+      // จุดแก้ไขที่ 3: วนลูปเฉพาะ participants ที่ถูกกรองแล้ว มาจำแนกยอดและจัดกลุ่ม
       participants.forEach(p => {
-        // ประมวลผลหมวดหมู่สถิติ
         const posGroup = this._categorizePosition(p.position || '');
         positionStats[posGroup] += 1;
 
-        // จัดกลุ่มตาม sessionId (หากไม่มี ให้จัดเข้ากลุ่ม ทั่วไป)
-        const sId = p.sessionId || 'ทั่วไป';
+        // จัดกลุ่มตาม sessionId
+        const sId = p.sessionId || 'รอบทั่วไป';
         if (!sessionGroups[sId]) {
           sessionGroups[sId] = [];
         }
         sessionGroups[sId].push(p);
       });
 
-      // สร้าง Dashboard แสดงผลสรุปยอด
+      // สร้าง Dashboard แสดงผลสรุปยอดเฉพาะหลักสูตรปัจจุบัน
       const totalParticipants = participants.length;
       let statsHtml = `
         <div class="card" style="margin-bottom: var(--space-6);">
           <div class="card-body">
-            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); border-bottom: 2px solid var(--gray-200); padding-bottom: var(--space-2);">สรุปยอดผู้ลงทะเบียนรวมจากฐานข้อมูล: <span class="text-teal">${totalParticipants}</span> คน</h3>
+            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); border-bottom: 2px solid var(--gray-200); padding-bottom: var(--space-2);">สรุปยอดผู้ลงทะเบียนในหลักสูตรนี้: <span class="text-teal">${totalParticipants}</span> คน</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3);">
       `;
       
@@ -312,7 +315,7 @@ const ManagePage = {
       });
       statsHtml += `</div></div></div>`;
 
-      // จุดแก้ไขที่ 2 & 3: วนลูปสร้างตารางแยกตามกลุ่ม sessionId และตกแต่งสีสันหัวตาราง
+      // จุดแก้ไขที่ 4: วนลูปสร้างตารางแยกตามกลุ่ม sessionId
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
         tablesHtml += `
@@ -361,7 +364,7 @@ const ManagePage = {
       contentDiv.style.padding = '0';
       contentDiv.style.textAlign = 'left';
 
-      // จัดการ Event สำหรับปุ่มพิมพ์ใบเซ็นชื่อตามกลุ่มรอบอบรมที่กด
+      // Bind Event สำหรับปุ่มพิมพ์ใบเซ็นชื่อแต่ละรอบ
       document.querySelectorAll('.print-sheet-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const currentBtn = e.target.closest('.print-sheet-btn');
