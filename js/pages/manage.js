@@ -226,10 +226,9 @@ const ManagePage = {
   },
 
   // ===================================================
-  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข บั๊กไม่แสดงรายชื่อ)
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันอัปเดตภาษาไทย + UI พรีเมียมคลีน)
   // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
-    // 1. Lifecycle Check: ตรวจสอบให้แน่ใจว่ามีข้อมูล trainingId ก่อนเริ่มทำงาน
     if (!trainingId) {
       UI.error('เกิดข้อผิดพลาด: ไม่พบรหัสหัวข้ออบรม (trainingId is missing)');
       return;
@@ -237,7 +236,7 @@ const ManagePage = {
 
     container.innerHTML = `
       <div class="animate-fade-in">
-        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-5);">
           <div>
             <h1 class="page-title">ตรวจสอบรายชื่อผู้ลงทะเบียน</h1>
             <p class="page-subtitle">${title}</p>
@@ -245,7 +244,7 @@ const ManagePage = {
           <button class="btn btn-outline-navy btn-sm" id="backToHubBtn"><i class="fa-solid fa-arrow-left"></i> กลับหน้าระบบจัดการ</button>
         </div>
         <div id="adminVerifyContent" style="text-align:center; padding: var(--space-8);">
-          <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--navy-500);"></i>
           <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลและจำแนกรายชื่อจากระบบ...</p>
         </div>
       </div>
@@ -256,23 +255,15 @@ const ManagePage = {
     });
 
     try {
-      // 🛑 [จุดที่แก้ไขที่ 1]: เปลี่ยนจากการเรียก getParticipants เป็น getRegistrationsByTraining 
-      // เพื่อดึงข้อมูลจากชีต REGISTRATIONS อย่างถูกต้อง
       const allRegistrations = await API.getRegistrationsByTraining(trainingId);
-      
-      // 🛑 [จุดที่แก้ไขที่ 2]: ปรับปรุง Logic การกรองข้อมูล (Filter) ป้องกันปัญหา Type String vs Number
       const currentTrainingIdStr = String(trainingId).trim();
       
       const participants = (allRegistrations || []).filter(p => {
         if (!p) return false;
-        
-        // รับรองกรณีชื่อ key สะกดผิดพลาดจากฝั่ง Backend
         const rowTrainingId = p.trainingId || p.TrainingId || ''; 
-        
         return String(rowTrainingId).trim() === currentTrainingIdStr;
       });
       
-      // เช็คว่ามีข้อมูลที่ตรงกับเงื่อนไขหรือไม่
       if (!participants || participants.length === 0) {
         document.getElementById('adminVerifyContent').innerHTML = `
           <div class="empty-state">
@@ -296,12 +287,10 @@ const ManagePage = {
 
       const sessionGroups = {};
 
-      // จัดกลุ่มข้อมูล (Group By) ตาม Session Id
       participants.forEach(p => {
         const posGroup = this._categorizePosition(p.position || '');
         positionStats[posGroup] += 1;
 
-        // ดักจับ sessionId เป็น String ป้องกันข้อผิดพลาด
         const sId = p.sessionId ? String(p.sessionId).trim() : 'รอบทั่วไป';
         if (!sessionGroups[sId]) {
           sessionGroups[sId] = [];
@@ -309,12 +298,14 @@ const ManagePage = {
         sessionGroups[sId].push(p);
       });
 
-      // สร้าง Dashboard แสดงผลสรุปยอดเฉพาะหลักสูตรปัจจุบัน
+      // สรุปยอด Dashboard ส่วนบน
       const totalParticipants = participants.length;
       let statsHtml = `
-        <div class="card" style="margin-bottom: var(--space-6);">
+        <div class="card" style="margin-bottom: var(--space-6); border-left: 4px solid var(--teal-500);">
           <div class="card-body">
-            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); border-bottom: 2px solid var(--gray-200); padding-bottom: var(--space-2);">สรุปยอดผู้ลงทะเบียนในหลักสูตรนี้: <span class="text-teal">${totalParticipants}</span> คน</h3>
+            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); font-weight: var(--fw-bold);">
+              สรุปยอดผู้ลงทะเบียนในหลักสูตรนี้: <span style="color: var(--teal-600); font-size: 1.5rem;">${totalParticipants}</span> คน
+            </h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3);">
       `;
       
@@ -323,46 +314,55 @@ const ManagePage = {
           statsHtml += `
             <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: var(--text-sm); color: var(--gray-700);">${key}</span>
-              <span style="font-size: var(--text-lg); font-weight: var(--fw-bold); color: var(--navy-600);">${count}</span>
+              <span style="font-size: var(--text-lg); font-weight: var(--fw-bold); color: var(--navy-700);">${count}</span>
             </div>
           `;
         }
       });
       statsHtml += `</div></div></div>`;
 
-      // วนลูปสร้างตารางแยกตามกลุ่ม sessionId
+      // วนลูปสร้างตารางแยกตามกลุ่มรอบการอบรมที่แปลงค่าแล้ว
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
+        
+        // 🛑 [จุดแก้ไขสำคัญ]: เรียกฟังก์ชันแปลงชื่อรอบให้เป็นภาษาไทยสละสลวย
+        const textSessionThai = this._formatSessionThai(sId, list);
+
         tablesHtml += `
-          <div class="card" style="margin-bottom: var(--space-5); border-top: 3px solid var(--navy-500);">
-            <div class="card-body">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-3); flex-wrap:wrap; gap: var(--space-2);">
-                <h4 style="color: var(--navy-700); margin: 0; font-weight: var(--fw-bold);">
-                  <i class="fa-solid fa-folder-open text-teal"></i> รอบการอบรม (Session ID): ${sId} 
-                  <span style="font-size:var(--text-sm); font-weight:normal; color:var(--gray-500); margin-left:8px;">(${list.length} คน)</span>
+          <div class="card" style="margin-bottom: var(--space-6); border-top: 4px solid var(--navy-600); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
+            <div class="card-body" style="padding: var(--space-4_5);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4); flex-wrap:wrap; gap: var(--space-3);">
+                <h4 style="color: var(--navy-800); margin: 0; font-weight: var(--fw-bold); font-size: 1.1rem; display: flex; align-items: center; gap: var(--space-2);">
+                  <i class="fa-solid fa-calendar-check style="color: var(--teal-500);"></i> 
+                  <span>${textSessionThai}</span>
+                  <span style="font-size: var(--text-xs); font-weight: normal; color: var(--navy-700); background: rgba(20, 184, 166, 0.1); padding: 2px 10px; border-radius: var(--radius-full); margin-left: var(--space-1); border: 1px solid rgba(20, 184, 166, 0.2);">
+                    ${list.length} คน
+                  </span>
                 </h4>
-                <button class="btn btn-teal btn-sm print-sheet-btn" data-session="${sId}">
+                <button class="btn btn-teal btn-sm print-sheet-btn" data-session="${sId}" style="display:flex; align-items:center; gap:6px;">
                   <i class="fa-solid fa-print"></i> พิมพ์ใบเซ็นชื่อรอบนี้
                 </button>
               </div>
               
-              <div style="overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--gray-200);">
+              <div style="overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
                 <table class="table" style="width: 100%; min-width: 600px; border-collapse: collapse; margin: 0;">
-                  <thead style="background-color: var(--navy-700); color: var(--white); border-bottom: 2px solid var(--navy-800);">
+                  
+                  <thead style="background: linear-gradient(180deg, var(--navy-700) 0%, var(--navy-800) 100%); color: var(--white); border-bottom: 3px solid var(--teal-500);">
                     <tr>
-                      <th style="padding: var(--space-3); text-align: center; width: 70px; color: var(--white); font-weight: var(--fw-semi);">ลำดับ</th>
-                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">ชื่อ-นามสกุล</th>
-                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">ตำแหน่ง</th>
-                      <th style="padding: var(--space-3); text-align: left; color: var(--white); font-weight: var(--fw-semi);">หน่วยงาน/สังกัด</th>
+                      <th style="padding: var(--space-3_5) var(--space-2); text-align: center; width: 80px; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">ลำดับ</th>
+                      <th style="padding: var(--space-3_5) var(--space-3); text-align: left; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">ชื่อ-นามสกุล</th>
+                      <th style="padding: var(--space-3_5) var(--space-3); text-align: left; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">ตำแหน่ง</th>
+                      <th style="padding: var(--space-3_5) var(--space-3); text-align: left; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">หน่วยงาน/สังกัด</th>
                     </tr>
                   </thead>
+                  
                   <tbody>
                     ${list.map((p, i) => `
-                      <tr style="border-bottom: 1px solid var(--gray-200); background: ${i % 2 === 0 ? 'var(--white)' : 'var(--gray-50)'};">
-                        <td style="padding: var(--space-2-5); text-align: center; color: var(--gray-500);">${i + 1}</td>
-                        <td style="padding: var(--space-2-5); font-weight: var(--fw-medium); color: var(--gray-800);">${p.fullName || '-'}</td>
-                        <td style="padding: var(--space-2-5); color: var(--gray-700);">${p.position || '-'}</td>
-                        <td style="padding: var(--space-2-5); color: var(--gray-700);">${p.department || '-'}</td>
+                      <tr style="border-bottom: 1px solid var(--gray-200); background: ${i % 2 === 0 ? 'var(--white)' : 'var(--gray-50)'}; text-align: left;">
+                        <td style="padding: var(--space-3) var(--space-2); text-align: center; color: var(--gray-400); font-size: var(--text-sm);">${i + 1}</td>
+                        <td style="padding: var(--space-3) var(--space-3); font-weight: var(--fw-medium); color: var(--navy-900); font-size: var(--text-sm);">${p.fullName || '-'}</td>
+                        <td style="padding: var(--space-3) var(--space-3); color: var(--gray-700); font-size: var(--text-sm);">${p.position || '-'}</td>
+                        <td style="padding: var(--space-3) var(--space-3); color: var(--gray-700); font-size: var(--text-sm);">${p.department || '-'}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -395,7 +395,61 @@ const ManagePage = {
         </div>`;
     }
   },
+  // ===================================================
+  // ฟังก์ชันย่อย: แปลงรหัส Session ID เป็นวันที่และเวลาไทย
+  // ===================================================
+  _formatSessionThai(sId, list) {
+    if (!sId || sId === 'รอบทั่วไป') return 'รอบทั่วไป';
+    
+    // 1. ตรวจสอบเผื่อสัญชาตญาณข้อมูล: หากในแถวข้อมูลผู้ลงทะเบียนตัวแรกมีข้อความภาษาไทยระบุไว้แล้ว ให้ใช้ค่านั้นก่อน
+    const firstRow = list && list[0];
+    if (firstRow) {
+      if (firstRow.sessionName && isNaN(firstRow.sessionName) && String(firstRow.sessionName).includes('รอบ')) {
+        return firstRow.sessionName;
+      }
+      if (firstRow.sessionText) return firstRow.sessionText;
+      if (firstRow.sessionDate) {
+        let label = `รอบวันที่ ${firstRow.sessionDate}`;
+        if (firstRow.sessionTime) label += ` เวลา ${firstRow.sessionTime}`;
+        return label;
+      }
+    }
 
+    // 2. ปฏิบัติการ Parse จากรูปแบบรหัสมาตรฐาน (Format: SES-YYYYMMDD-XXXX-X)
+    const regex = /SES-(\d{4})(\d{2})(\d{2})/i;
+    const match = String(sId).match(regex);
+    
+    if (match) {
+      const yearEN = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10);
+      const day = parseInt(match[3], 10);
+      const yearTH = yearEN + 543; // แปลงเป็น พ.ศ.
+      
+      const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      
+      const monthText = thaiMonths[month - 1] || '';
+      let formattedLabel = `รอบวันที่ ${day} ${monthText} ${yearTH}`;
+      
+      // ดึงช่วงเวลามาต่อท้าย หากตรวจพบฟิลด์เวลาในแถวข้อมูล
+      if (firstRow && (firstRow.sessionTime || firstRow.time)) {
+        const timeVal = firstRow.sessionTime || firstRow.time;
+        formattedLabel += ` เวลา ${timeVal}`;
+        if (!String(timeVal).endsWith('น.')) formattedLabel += ' น.';
+      } else {
+        // หากไม่มีข้อมูลเวลาในแถว ให้ปล่อยให้ยืดหยุ่นตามกำหนดการ
+        formattedLabel += ` (ตามกำหนดการหลักสูตร)`;
+      }
+      
+      return formattedLabel;
+    }
+    
+    // Fallback: หากไม่เข้าเงื่อนไขใดเลย ให้แสดงค่าเดิมเพื่อไม่ให้ข้อมูลสูญหาย
+    return `รอบการอบรม (รหัส: ${sId})`;
+  },
+  
   _categorizePosition(position) {
     const pos = position.trim();
     if (!pos) return 'ตำแหน่งอื่นๆ';
