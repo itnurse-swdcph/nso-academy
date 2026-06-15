@@ -240,7 +240,7 @@ const ManagePage = {
         </div>
         <div id="adminVerifyContent" style="text-align:center; padding: var(--space-8);">
           <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
-          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลจากชีต REGISTRATIONS...</p>
+          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลลงทะเบียน...</p>
         </div>
       </div>
     `;
