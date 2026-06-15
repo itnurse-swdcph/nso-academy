@@ -579,91 +579,113 @@ const ManagePage = {
       return;
     }
 
+    // จัดกลุ่มตามหน่วยงาน (เหมือนในหน้า Verify)
+    const sortedList = [...participantsList].sort((a, b) =>
+      (a.department || '').localeCompare(b.department || '', 'th')
+    );
+
+    let rowsHtml = '';
+    let no = 1;
+    let lastDept = null;
+    
+    sortedList.forEach(p => {
+      if (p.department !== lastDept) {
+        rowsHtml += `
+          <tr>
+            <td colspan="5" style="background:#f3f4f6; font-weight:bold; font-size:12pt; padding:8px 12px; border:1px solid #333;">
+              หน่วยงาน: ${p.department || '-'}
+            </td>
+          </tr>`;
+        lastDept = p.department;
+      }
+      rowsHtml += `
+        <tr>
+          <td style="text-align:center; padding:8px; border:1px solid #333;">${no++}</td>
+          <td style="padding:8px; border:1px solid #333;">${p.fullName || '-'}</td>
+          <td style="padding:8px; border:1px solid #333;">${p.position || '-'}</td>
+          <td style="padding:8px; border:1px solid #333;">${p.department || '-'}</td>
+          <td style="text-align:center; padding:8px; border:1px solid #333;"></td>
+        </tr>`;
+    });
+
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="th">
       <head>
         <meta charset="UTF-8">
-        <title>ใบลงทะเบียนเข้ารับการอบรม - ${courseTitle}</title>
+        <title>ใบลงทะเบียน - ${courseTitle}</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
           body {
             font-family: 'Sarabun', sans-serif;
-            color: #333;
+            color: #000;
+            background: #fff;
             margin: 0;
             padding: 20px;
           }
-          .header {
-            text-align: center;
-            margin-bottom: 25px;
+          
+          /* การตั้งค่าหน้ากระดาษและ Print Layout */
+          @media print {
+            @page { size: A4 landscape; margin: 15mm; }
+            body { padding: 0 !important; margin: 0 !important; -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
           }
-          .header h2 { margin: 0 0 8px 0; font-size: 19px; }
-          .header h3 { margin: 0 0 15px 0; font-size: 15px; font-weight: 500; color: #444; }
-          table {
+
+          .print-header-content { text-align: center; margin-bottom: 15px; }
+          .print-header-content h2 { font-size: 16pt; font-weight: bold; margin: 0 0 5px 0; }
+          .print-header-content h3 { font-size: 14pt; font-weight: normal; margin: 0 0 5px 0; }
+
+          .print-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 11pt;
+            margin-top: 10px;
           }
-          th, td {
-            border: 1px solid #000;
-            padding: 8px 10px;
-            vertical-align: middle;
-          }
-          th {
-            background-color: #f2f2f2;
-            font-weight: 600;
-            text-align: center;
-          }
-          .col-no { width: 50px; text-align: center; }
-          .col-name { width: 28%; }
-          .col-pos { width: 18%; }
-          .col-dep { width: 18%; }
-          .col-sign { width: 18%; }
-          @media print {
-            body { padding: 0; }
-            .no-print { display: none; }
-            @page { size: A4 portrait; margin: 12mm; }
-          }
+          .print-table th, .print-table td { border: 1px solid #333; }
         </style>
       </head>
       <body>
         <div class="no-print" style="text-align:right; margin-bottom: 15px;">
-          <button onclick="window.print()" style="padding: 8px 18px; font-size: 14px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 4px; font-family: 'Sarabun'; font-weight: 500;">🖨️ พิมพ์เอกสารใบลงทะเบียน</button>
+          <button onclick="window.print()" style="padding: 10px 20px; font-size: 15px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 6px; font-family: 'Sarabun'; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🖨️ พิมพ์เอกสารใบลงทะเบียน
+          </button>
         </div>
         
-        <div class="header">
-          <h2>ใบลงทะเบียนเข้ารับการอบรม</h2>
-          <h2>เรื่อง: ${courseTitle}</h2>
-          <h3>รอบการอบรม (Session ID): ${sessionId}</h3>
-        </div>
-
-        <table>
+        <table class="print-table">
           <thead>
             <tr>
-              <th class="col-no">ลำดับ</th>
-              <th class="col-name">ชื่อ - นามสกุล</th>
-              <th class="col-pos">ตำแหน่ง</th>
-              <th class="col-dep">หน่วยงาน/สังกัด</th>
-              <th class="col-sign">ลายมือชื่อ (เช้า)</th>
-              <th class="col-sign">ลายมือชื่อ (บ่าย)</th>
+              <td colspan="5" style="border: none; padding-bottom: 15px;">
+                <div class="print-header-content">
+                  <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
+                  <h2>เรื่อง: ${courseTitle}</h2>
+                  <h3>รอบการอบรม (รหัส: ${sessionId})</h3>
+                </div>
+              </td>
+            </tr>
+            <tr style="background:#e5e7eb; font-weight:bold; text-align:center;">
+              <th style="width: 5%; padding: 10px;">ลำดับ</th>
+              <th style="width: 25%; padding: 10px;">ชื่อ - นามสกุล</th>
+              <th style="width: 20%; padding: 10px;">ตำแหน่ง</th>
+              <th style="width: 20%; padding: 10px;">หน่วยงาน/สังกัด</th>
+              <th style="width: 30%; padding: 10px;">ลายมือชื่อ</th>
             </tr>
           </thead>
           <tbody>
-            ${participantsList.map((p, i) => `
-              <tr>
-                <td class="col-no">${i + 1}</td>
-                <td class="col-name">${p.fullName || '-'}</td>
-                <td class="col-pos">${p.position || '-'}</td>
-                <td class="col-dep">${p.department || '-'}</td>
-                <td class="col-sign"></td>
-                <td class="col-sign"></td>
-              </tr>
-            `).join('')}
+            ${rowsHtml}
           </tbody>
         </table>
+
+        <div style="margin-top: 15px; text-align: right; font-size: 11pt;">
+          <strong>รวมจำนวนผู้เข้าอบรมทั้งหมด: ${sortedList.length} ท่าน</strong>
+        </div>
         
         <script>
-          window.onload = () => { setTimeout(() => window.print(), 300); }
+          // หน่วงเวลาเล็กน้อยให้ฟอนต์และเนื้อหาโหลดเสร็จก่อนเปิดหน้าต่าง Print
+          window.onload = () => { setTimeout(() => window.print(), 500); }
         </script>
       </body>
       </html>
