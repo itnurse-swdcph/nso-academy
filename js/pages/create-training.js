@@ -19,7 +19,6 @@ const CreateTrainingPage = {
           <div class="card-body">
             <form id="createTrainingForm" novalidate>
 
-              <!-- ข้อมูลพื้นฐาน -->
               <div class="form-section">
                 <div class="form-section-title"><i class="fa-solid fa-clipboard-list"></i> ข้อมูลการอบรม</div>
                 <div class="form-grid">
@@ -37,6 +36,7 @@ const CreateTrainingPage = {
                     <input type="text" id="trainingOrganizer" class="form-control"
                       placeholder="เช่น งานการพยาบาลผู้ป่วยอายุรกรรม" required maxlength="200">
                   </div>
+                  
                   <div class="form-group">
                     <label class="form-label" for="trainingLocation">
                       สถานที่จัด <span class="required">*</span>
@@ -46,11 +46,20 @@ const CreateTrainingPage = {
                       <option value="ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน">ห้องประชุมพุทธชาด อาคารผู้ป่วยนอกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
                       <option value="ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน">ห้องประชุมอินทนิล อาคารผู้ป่วยนอกชั้น 3 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
                       <option value="ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน">ห้องประชุมวิโรจนวัธน์ อาคารแพทย์แผนไทยและการแพทย์ทางเลือกชั้น 4 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
+                      <option value="ห้องประชุมเบญจกุล อาคารงานการพยาบาลไตเทียม ชั้น 2 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน">ห้องประชุมเบญจกุล อาคารงานการพยาบาลไตเทียม ชั้น 2 โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน</option>
+                      <option value="อื่นๆ">อื่นๆ</option>
                     </select>
+                  </div>
+                  
+                  <div class="form-group hidden" id="customLocationGroup">
+                    <label class="form-label" for="customLocationInput">
+                      ระบุสถานที่อื่นๆ <span class="required">*</span>
+                    </label>
+                    <input type="text" id="customLocationInput" class="form-control"
+                      placeholder="ระบุสถานที่จัดอบรมที่ต้องการ">
                   </div>
                 </div>
                 
-                <!-- ตั้งค่าจำนวนคนลงทะเบียน -->
                 <div class="form-grid" style="margin-top: var(--space-4);">
                   <div class="form-group">
                     <label class="form-label">จำนวนคนลงทะเบียน <span class="required">*</span></label>
@@ -73,7 +82,6 @@ const CreateTrainingPage = {
                 </div>
               </div>
 
-              <!-- รอบวันเวลา -->
               <div class="form-section">
                 <div class="form-section-title"><i class="fa-solid fa-calendar-days"></i> รอบวันและเวลาอบรม</div>
                 <div id="sessionList" class="session-list"></div>
@@ -91,7 +99,6 @@ const CreateTrainingPage = {
           </div>
         </div>
 
-        <!-- Result Panel (hidden initially) -->
         <div id="resultPanel" class="result-panel hidden animate-fade-in">
           <div class="result-panel-title"><i class="fa-solid fa-circle-check text-success"></i> สร้างหัวข้ออบรมสำเร็จ!</div>
           <div class="result-grid">
@@ -164,6 +171,23 @@ const CreateTrainingPage = {
           maxSeatsInput.value = '';
         }
       });
+    });
+
+    // จุดแก้ไขที่ 3: Bind เหตุการณ์เมื่อเลือก Dropdown สถานที่
+    const locationSelect = container.querySelector('#trainingLocation');
+    const customLocationGroup = container.querySelector('#customLocationGroup');
+    const customLocationInput = container.querySelector('#customLocationInput');
+
+    locationSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'อื่นๆ') {
+        customLocationGroup.classList.remove('hidden');
+        customLocationInput.required = true;
+        customLocationInput.focus();
+      } else {
+        customLocationGroup.classList.add('hidden');
+        customLocationInput.required = false;
+        customLocationInput.value = ''; // เคลียร์ค่าที่พิมพ์ทิ้งถ้ากลับไปเลือกตัวเลือกปกติ
+      }
     });
 
     // Bind events
@@ -258,8 +282,19 @@ const CreateTrainingPage = {
 
     const title     = document.getElementById('trainingTitle').value.trim();
     const organizer = document.getElementById('trainingOrganizer').value.trim();
-    const location  = document.getElementById('trainingLocation').value.trim();
+    let location    = document.getElementById('trainingLocation').value.trim();
     const sessions  = this._collectSessions();
+
+    // จุดแก้ไขที่ 4: ตรวจสอบและสลับค่า Location หากผู้ใช้เลือก "อื่นๆ"
+    if (location === 'อื่นๆ') {
+      location = document.getElementById('customLocationInput').value.trim();
+      // ดักจับเพิ่มเติมเผื่อกรณี Required attribute ทำงานพลาด (เช่น Browser รุ่นเก่า)
+      if (!location) {
+        UI.error('กรุณาระบุสถานที่อื่นๆ');
+        document.getElementById('customLocationInput').focus();
+        return;
+      }
+    }
 
     if (!title || !organizer || !location) {
       UI.error('กรุณากรอกข้อมูลให้ครบถ้วน');
@@ -323,8 +358,14 @@ const CreateTrainingPage = {
     document.getElementById('sessionList').innerHTML = '';
     this._sessionCount = 1;
     this._addSessionRow();
+    
+    // จุดแก้ไขเพิ่มเติม: Reset สถานะของช่อง Capacity และ สถานที่อื่นๆ ด้วย
     document.getElementById('capacityLimitGroup').classList.add('hidden');
     document.getElementById('maxSeatsInput').required = false;
+    
+    document.getElementById('customLocationGroup').classList.add('hidden');
+    document.getElementById('customLocationInput').required = false;
+
     window.scrollTo(0, 0);
   },
 
