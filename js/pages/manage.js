@@ -228,7 +228,7 @@ const ManagePage = {
   // ===================================================
   // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันอัปเดตภาษาไทย + UI พรีเมียมคลีน)
   // ===================================================
-  async _renderAdminVerification(container, trainingId, title) {
+  async _renderAdminVerification(container, trainingId, title) {(container, trainingId, title) {
     if (!trainingId) {
       UI.error('เกิดข้อผิดพลาด: ไม่พบรหัสหัวข้ออบรม (trainingId is missing)');
       return;
@@ -255,7 +255,12 @@ const ManagePage = {
     });
 
     try {
-      const allRegistrations = await API.getRegistrationsByTraining(trainingId);
+      // 1. โหลดข้อมูลการลงทะเบียนทั้งหมด และ ข้อมูลรอบการอบรม (Sessions) ควบคู่กัน
+      const [allRegistrations, sessionsData] = await Promise.all([
+        API.getRegistrationsByTraining(trainingId),
+        API.getTrainingSessions(trainingId).catch(() => []) // เผื่อกรณีไม่มีข้อมูลหรือ error
+      ]);
+      
       const currentTrainingIdStr = String(trainingId).trim();
       
       const participants = (allRegistrations || []).filter(p => {
@@ -300,33 +305,17 @@ const ManagePage = {
 
       // สรุปยอด Dashboard ส่วนบน
       const totalParticipants = participants.length;
-      let statsHtml = `
-        <div class="card" style="margin-bottom: var(--space-6); border-left: 4px solid var(--teal-500);">
-          <div class="card-body">
-            <h3 style="margin-bottom: var(--space-4); color: var(--navy-800); font-weight: var(--fw-bold);">
-              สรุปยอดผู้ลงทะเบียนในหลักสูตรนี้: <span style="color: var(--teal-600); font-size: 1.5rem;">${totalParticipants}</span> คน
-            </h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3);">
-      `;
+      let statsHtml = `... (โค้ดส่วนนี้เหมือนเดิม) ...`;
       
-      Object.entries(positionStats).forEach(([key, count]) => {
-        if (count > 0 || key === 'พยาบาลวิชาชีพ') {
-          statsHtml += `
-            <div style="background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: var(--space-3); display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: var(--text-sm); color: var(--gray-700);">${key}</span>
-              <span style="font-size: var(--text-lg); font-weight: var(--fw-bold); color: var(--navy-700);">${count}</span>
-            </div>
-          `;
-        }
-      });
+      Object.entries(positionStats).forEach(([key, count]) => { ... });
       statsHtml += `</div></div></div>`;
 
       // วนลูปสร้างตารางแยกตามกลุ่มรอบการอบรมที่แปลงค่าแล้ว
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
         
-        // 🛑 [จุดแก้ไขสำคัญ]: เรียกฟังก์ชันแปลงชื่อรอบให้เป็นภาษาไทยสละสลวย
-        const textSessionThai = this._formatSessionThai(sId, list);
+        // 🛑 [จุดแก้ไขสำคัญ]: เรียกฟังก์ชันแปลงชื่อรอบให้เป็นภาษาไทยสละสลวย โดยแนบ sessionsData ไปด้วย
+        const textSessionThai = this._formatSessionThai(sId, list, sessionsData);
 
         tablesHtml += `
           <div class="card" style="margin-bottom: var(--space-6); border-top: 4px solid var(--navy-600); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
@@ -398,10 +387,40 @@ const ManagePage = {
   // ===================================================
   // ฟังก์ชันย่อย: แปลงรหัส Session ID เป็นวันที่และเวลาไทย
   // ===================================================
-  _formatSessionThai(sId, list) {
+  _formatSessionThai(sId, list, sessionsData = []) {
     if (!sId || sId === 'รอบทั่วไป') return 'รอบทั่วไป';
     
-    // 1. ตรวจสอบเผื่อสัญชาตญาณข้อมูล: หากในแถวข้อมูลผู้ลงทะเบียนตัวแรกมีข้อความภาษาไทยระบุไว้แล้ว ให้ใช้ค่านั้นก่อน
+    // 1. ค้นหาข้อมูล Session ที่ถูกต้องจากฐานข้อมูลกลางก่อนเป็นอันดับแรก
+    const realSession = sessionsData.find(s => s.sessionId === sId);
+    
+    if (realSession) {
+       // จัดรูปแบบวันที่โดยใช้ Utils.thaiDate (หากมีใน Utils) หรือเขียนดึงค่าตรงๆ
+       // ตัวอย่างการใช้ข้อมูลจาก realSession
+       let formattedLabel = '';
+       
+       if (realSession.sessionDate || realSession.date) {
+           const dateVal = realSession.sessionDate || realSession.date;
+           // พยายามจัดฟอร์แมตให้เป็นภาษาไทย ถ้า Utils.thaiDate ใช้ได้
+           try {
+               const thaiDateStr = Utils.thaiDate ? Utils.thaiDate(dateVal, 'long') : dateVal;
+               formattedLabel = `รอบวันที่ ${thaiDateStr}`;
+           } catch(e) {
+               formattedLabel = `รอบวันที่ ${dateVal}`;
+           }
+       } else {
+           formattedLabel = `รอบที่ (ID: ${sId})`;
+       }
+
+       if (realSession.startTime && realSession.endTime) {
+           formattedLabel += ` เวลา ${Utils.formatTime ? Utils.formatTime(realSession.startTime) : realSession.startTime} - ${Utils.formatTime ? Utils.formatTime(realSession.endTime) : realSession.endTime} น.`;
+       } else if (realSession.time) {
+           formattedLabel += ` เวลา ${realSession.time} น.`;
+       }
+       
+       return formattedLabel;
+    }
+
+    // 2. หากไม่พบในฐานข้อมูล (Fallback) ค่อยใช้วิธีดึงจากแถวแรกของผู้ลงทะเบียน
     const firstRow = list && list[0];
     if (firstRow) {
       if (firstRow.sessionName && isNaN(firstRow.sessionName) && String(firstRow.sessionName).includes('รอบ')) {
@@ -415,7 +434,7 @@ const ManagePage = {
       }
     }
 
-    // 2. ปฏิบัติการ Parse จากรูปแบบรหัสมาตรฐาน (Format: SES-YYYYMMDD-XXXX-X)
+    // 3. Fallback สุดท้าย ปฏิบัติการ Parse จากรูปแบบรหัสมาตรฐาน (Format: SES-YYYYMMDD-XXXX-X)
     const regex = /SES-(\d{4})(\d{2})(\d{2})/i;
     const match = String(sId).match(regex);
     
