@@ -228,7 +228,7 @@ const ManagePage = {
   // ===================================================
   // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันอัปเดตภาษาไทย + UI พรีเมียมคลีน)
   // ===================================================
-  async _renderAdminVerification(container, trainingId, title) {(container, trainingId, title) {
+  async _renderAdminVerification(container, trainingId, title) {
     if (!trainingId) {
       UI.error('เกิดข้อผิดพลาด: ไม่พบรหัสหัวข้ออบรม (trainingId is missing)');
       return;
@@ -255,10 +255,10 @@ const ManagePage = {
     });
 
     try {
-      // 1. โหลดข้อมูลการลงทะเบียนทั้งหมด และ ข้อมูลรอบการอบรม (Sessions) ควบคู่กัน
+      // โหลดข้อมูลการลงทะเบียนทั้งหมด และ ข้อมูลรอบการอบรม (Sessions) ควบคู่กัน
       const [allRegistrations, sessionsData] = await Promise.all([
         API.getRegistrationsByTraining(trainingId),
-        API.getTrainingSessions(trainingId).catch(() => []) // เผื่อกรณีไม่มีข้อมูลหรือ error
+        API.getTrainingSessions(trainingId).catch(() => [])
       ]);
       
       const currentTrainingIdStr = String(trainingId).trim();
@@ -305,16 +305,38 @@ const ManagePage = {
 
       // สรุปยอด Dashboard ส่วนบน
       const totalParticipants = participants.length;
-      let statsHtml = `... (โค้ดส่วนนี้เหมือนเดิม) ...`;
+      let statsHtml = `
+        <div style="margin-bottom: var(--space-6);">
+          <div style="display:flex; gap: var(--space-4); flex-wrap: wrap;">
+            
+            <div class="stat-card" style="flex: 1; min-width: 200px; background: var(--white); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); text-align: center; box-shadow: var(--shadow-sm);">
+              <div style="color: var(--gray-500); font-size: var(--text-sm); margin-bottom: var(--space-1);">ผู้ลงทะเบียนทั้งหมด</div>
+              <div style="font-size: 2.2rem; font-weight: var(--fw-bold); color: var(--navy-700);">${totalParticipants}</div>
+              <div style="font-size: var(--text-xs); color: var(--gray-400);">คน</div>
+            </div>
+
+            <div class="stat-card" style="flex: 3; min-width: 300px; background: var(--white); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm);">
+              <div style="color: var(--gray-500); font-size: var(--text-sm); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">สัดส่วนตำแหน่งผู้เข้าอบรม</div>
+              <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+      `;
       
-      Object.entries(positionStats).forEach(([key, count]) => { ... });
-      statsHtml += `</div></div></div>`;
+      Object.entries(positionStats).forEach(([key, count]) => {
+        if (count > 0) {
+          statsHtml += `
+            <div style="background: var(--gray-50); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); font-size: var(--text-sm); border: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--gray-600);">${key}</span>
+              <strong style="color: var(--teal-600); background: rgba(20, 184, 166, 0.1); padding: 2px 8px; border-radius: 12px;">${count}</strong>
+            </div>
+          `;
+        }
+      });
+      statsHtml += `</div></div></div></div>`;
 
       // วนลูปสร้างตารางแยกตามกลุ่มรอบการอบรมที่แปลงค่าแล้ว
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
         
-        // 🛑 [จุดแก้ไขสำคัญ]: เรียกฟังก์ชันแปลงชื่อรอบให้เป็นภาษาไทยสละสลวย โดยแนบ sessionsData ไปด้วย
+        // 🛑 [จุดแก้ไขสำคัญ]: ดึงวันที่และเวลาจากฐานข้อมูลกลาง (sessionsData)
         const textSessionThai = this._formatSessionThai(sId, list, sessionsData);
 
         tablesHtml += `
@@ -322,7 +344,7 @@ const ManagePage = {
             <div class="card-body" style="padding: var(--space-4_5);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4); flex-wrap:wrap; gap: var(--space-3);">
                 <h4 style="color: var(--navy-800); margin: 0; font-weight: var(--fw-bold); font-size: 1.1rem; display: flex; align-items: center; gap: var(--space-2);">
-                  <i class="fa-solid fa-calendar-check style="color: var(--teal-500);"></i> 
+                  <i class="fa-solid fa-calendar-check" style="color: var(--teal-500);"></i> 
                   <span>${textSessionThai}</span>
                   <span style="font-size: var(--text-xs); font-weight: normal; color: var(--navy-700); background: rgba(20, 184, 166, 0.1); padding: 2px 10px; border-radius: var(--radius-full); margin-left: var(--space-1); border: 1px solid rgba(20, 184, 166, 0.2);">
                     ${list.length} คน
@@ -335,7 +357,6 @@ const ManagePage = {
               
               <div style="overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--gray-200);">
                 <table class="table" style="width: 100%; min-width: 600px; border-collapse: collapse; margin: 0;">
-                  
                   <thead style="background: linear-gradient(180deg, var(--navy-700) 0%, var(--navy-800) 100%); color: var(--white); border-bottom: 3px solid var(--teal-500);">
                     <tr>
                       <th style="padding: var(--space-3_5) var(--space-2); text-align: center; width: 80px; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">ลำดับ</th>
@@ -344,7 +365,6 @@ const ManagePage = {
                       <th style="padding: var(--space-3_5) var(--space-3); text-align: left; color: var(--white); font-size: 0.925rem; font-weight: 600; letter-spacing: 0.5px;">หน่วยงาน/สังกัด</th>
                     </tr>
                   </thead>
-                  
                   <tbody>
                     ${list.map((p, i) => `
                       <tr style="border-bottom: 1px solid var(--gray-200); background: ${i % 2 === 0 ? 'var(--white)' : 'var(--gray-50)'}; text-align: left;">
@@ -384,35 +404,62 @@ const ManagePage = {
         </div>`;
     }
   },
+
   // ===================================================
-  // ฟังก์ชันย่อย: แปลงรหัส Session ID เป็นวันที่และเวลาไทย
+  // ฟังก์ชันย่อย: แปลงรหัส Session ID เป็นวันที่และเวลาไทย (ตัวเต็ม)
   // ===================================================
   _formatSessionThai(sId, list, sessionsData = []) {
     if (!sId || sId === 'รอบทั่วไป') return 'รอบทั่วไป';
     
-    // 1. ค้นหาข้อมูล Session ที่ถูกต้องจากฐานข้อมูลกลางก่อนเป็นอันดับแรก
-    const realSession = sessionsData.find(s => s.sessionId === sId);
+    // 1. ค้นหาข้อมูล Session ที่ถูกต้องจากฐานข้อมูลกลาง (อ้างอิงจาก ID)
+    const realSession = sessionsData.find(s => 
+      String(s.sessionId).trim() === String(sId).trim() || 
+      String(s.id).trim() === String(sId).trim()
+    );
     
+    // ฟังก์ชันช่วยแปลงวันที่ให้เป็นภาษาไทยแบบเต็มรูป
+    const toThaiDateFull = (dateStr) => {
+      if (!dateStr) return '';
+      let match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/); // รูปแบบ YYYY-MM-DD
+      let year, month, day;
+      if (match) {
+        year = parseInt(match[1]);
+        month = parseInt(match[2]);
+        day = parseInt(match[3]);
+      } else {
+        match = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // รูปแบบ DD/MM/YYYY
+        if (match) {
+          day = parseInt(match[1]);
+          month = parseInt(match[2]);
+          year = parseInt(match[3]);
+        }
+      }
+
+      if (day && month && year) {
+        const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const thYear = year < 2400 ? year + 543 : year;
+        return `${day} ${thaiMonths[month - 1]} ${thYear}`;
+      }
+      return dateStr;
+    };
+
     if (realSession) {
-       // จัดรูปแบบวันที่โดยใช้ Utils.thaiDate (หากมีใน Utils) หรือเขียนดึงค่าตรงๆ
-       // ตัวอย่างการใช้ข้อมูลจาก realSession
        let formattedLabel = '';
        
-       if (realSession.sessionDate || realSession.date) {
-           const dateVal = realSession.sessionDate || realSession.date;
-           // พยายามจัดฟอร์แมตให้เป็นภาษาไทย ถ้า Utils.thaiDate ใช้ได้
-           try {
-               const thaiDateStr = Utils.thaiDate ? Utils.thaiDate(dateVal, 'long') : dateVal;
-               formattedLabel = `รอบวันที่ ${thaiDateStr}`;
-           } catch(e) {
-               formattedLabel = `รอบวันที่ ${dateVal}`;
-           }
+       // ดึงฟิลด์วันที่มาจัดการ (รองรับทั้ง date และ sessionDate)
+       const dateVal = realSession.date || realSession.sessionDate;
+       if (dateVal) {
+           const thaiDateStr = toThaiDateFull(dateVal);
+           formattedLabel = `รอบวันที่ ${thaiDateStr}`;
        } else {
            formattedLabel = `รอบที่ (ID: ${sId})`;
        }
 
-       if (realSession.startTime && realSession.endTime) {
-           formattedLabel += ` เวลา ${Utils.formatTime ? Utils.formatTime(realSession.startTime) : realSession.startTime} - ${Utils.formatTime ? Utils.formatTime(realSession.endTime) : realSession.endTime} น.`;
+       // ดึงฟิลด์เวลา
+       const sTime = realSession.startTime;
+       const eTime = realSession.endTime;
+       if (sTime && eTime) {
+           formattedLabel += ` เวลา ${sTime} - ${eTime} น.`;
        } else if (realSession.time) {
            formattedLabel += ` เวลา ${realSession.time} น.`;
        }
@@ -420,21 +467,21 @@ const ManagePage = {
        return formattedLabel;
     }
 
-    // 2. หากไม่พบในฐานข้อมูล (Fallback) ค่อยใช้วิธีดึงจากแถวแรกของผู้ลงทะเบียน
+    // 2. หากไม่พบในฐานข้อมูลส่วนกลาง ให้ใช้ข้อมูลบรรทัดแรกเป็น Fallback
     const firstRow = list && list[0];
     if (firstRow) {
       if (firstRow.sessionName && isNaN(firstRow.sessionName) && String(firstRow.sessionName).includes('รอบ')) {
         return firstRow.sessionName;
       }
-      if (firstRow.sessionText) return firstRow.sessionText;
       if (firstRow.sessionDate) {
-        let label = `รอบวันที่ ${firstRow.sessionDate}`;
+        const thaiDateFallback = toThaiDateFull(firstRow.sessionDate);
+        let label = `รอบวันที่ ${thaiDateFallback}`;
         if (firstRow.sessionTime) label += ` เวลา ${firstRow.sessionTime}`;
         return label;
       }
     }
 
-    // 3. Fallback สุดท้าย ปฏิบัติการ Parse จากรูปแบบรหัสมาตรฐาน (Format: SES-YYYYMMDD-XXXX-X)
+    // 3. Fallback สุดท้าย ปฏิบัติการ Parse จากรูปแบบรหัสมาตรฐาน (SES-YYYYMMDD)
     const regex = /SES-(\d{4})(\d{2})(\d{2})/i;
     const match = String(sId).match(regex);
     
@@ -442,30 +489,23 @@ const ManagePage = {
       const yearEN = parseInt(match[1], 10);
       const month = parseInt(match[2], 10);
       const day = parseInt(match[3], 10);
-      const yearTH = yearEN + 543; // แปลงเป็น พ.ศ.
+      const yearTH = yearEN + 543;
       
-      const thaiMonths = [
-        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-      ];
-      
+      const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
       const monthText = thaiMonths[month - 1] || '';
       let formattedLabel = `รอบวันที่ ${day} ${monthText} ${yearTH}`;
       
-      // ดึงช่วงเวลามาต่อท้าย หากตรวจพบฟิลด์เวลาในแถวข้อมูล
       if (firstRow && (firstRow.sessionTime || firstRow.time)) {
         const timeVal = firstRow.sessionTime || firstRow.time;
         formattedLabel += ` เวลา ${timeVal}`;
         if (!String(timeVal).endsWith('น.')) formattedLabel += ' น.';
       } else {
-        // หากไม่มีข้อมูลเวลาในแถว ให้ปล่อยให้ยืดหยุ่นตามกำหนดการ
         formattedLabel += ` (ตามกำหนดการหลักสูตร)`;
       }
       
       return formattedLabel;
     }
     
-    // Fallback: หากไม่เข้าเงื่อนไขใดเลย ให้แสดงค่าเดิมเพื่อไม่ให้ข้อมูลสูญหาย
     return `รอบการอบรม (รหัส: ${sId})`;
   },
   
