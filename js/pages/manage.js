@@ -443,10 +443,48 @@ const ManagePage = {
       return dateStr;
     };
 
+    // 🛑 ฟังก์ชันช่วยเคลียร์ปัญหาเวลา ISO ดิบ (1899-12-30T01:17:56.000Z)
+    const formatTimeFromIso = (timeStr) => {
+      if (!timeStr) return '';
+      const str = String(timeStr).trim();
+      
+      // ตรวจสอบว่าเป็น ISO String ที่มาจาก Google Sheets
+      if (str.includes('T') && str.includes('Z')) {
+        const match = str.match(/T(\d{2}):(\d{2}):(\d{2})/);
+        if (match) {
+          let h = parseInt(match[1], 10);
+          let m = parseInt(match[2], 10);
+          let s = parseInt(match[3], 10);
+          
+          // แปลงกลับเป็นเวลาไทย (+7 ชั่วโมง)
+          h = (h + 7) % 24;
+          
+          // แก้อาการเหลื่อม 17 นาที 56 วินาที ของ Timezone ยุค 1899 ใน Google Sheets
+          if (str.startsWith('1899-12-30')) {
+            m -= 17;
+            s -= 56;
+            if (s < 0) { s += 60; m -= 1; }
+            if (m < 0) { m += 60; h -= 1; }
+            if (h < 0) { h += 24; }
+            
+            // ปัดเศษนาทีให้สวยงาม (เผื่อกรณีเวลา 08:30 มันก็จะปัดเข้าหา 30 ให้เป๊ะ)
+            m = Math.round(m / 5) * 5;
+            if (m === 60) { m = 0; h = (h + 1) % 24; }
+          }
+          
+          const hh = String(h).padStart(2, '0');
+          const mm = String(m).padStart(2, '0');
+          return `${hh}:${mm}`; // หากต้องการจุด ให้เปลี่ยนเป็น `${hh}.${mm}`
+        }
+      }
+      
+      // ถ้าข้อมูลเป็น String ธรรมดาอยู่แล้ว (เช่น "08:00") คืนค่ากลับไปได้เลย
+      return str;
+    };
+
     if (realSession) {
        let formattedLabel = '';
        
-       // ดึงฟิลด์วันที่มาจัดการ (รองรับทั้ง date และ sessionDate)
        const dateVal = realSession.date || realSession.sessionDate;
        if (dateVal) {
            const thaiDateStr = toThaiDateFull(dateVal);
@@ -455,13 +493,14 @@ const ManagePage = {
            formattedLabel = `รอบที่ (ID: ${sId})`;
        }
 
-       // ดึงฟิลด์เวลา
-       const sTime = realSession.startTime;
-       const eTime = realSession.endTime;
+       // นำตัวแปร startTime และ endTime ไปเข้าฟังก์ชันแปลงเวลา
+       const sTime = formatTimeFromIso(realSession.startTime);
+       const eTime = formatTimeFromIso(realSession.endTime);
+       
        if (sTime && eTime) {
            formattedLabel += ` เวลา ${sTime} - ${eTime} น.`;
        } else if (realSession.time) {
-           formattedLabel += ` เวลา ${realSession.time} น.`;
+           formattedLabel += ` เวลา ${formatTimeFromIso(realSession.time)} น.`;
        }
        
        return formattedLabel;
@@ -476,7 +515,9 @@ const ManagePage = {
       if (firstRow.sessionDate) {
         const thaiDateFallback = toThaiDateFull(firstRow.sessionDate);
         let label = `รอบวันที่ ${thaiDateFallback}`;
-        if (firstRow.sessionTime) label += ` เวลา ${firstRow.sessionTime}`;
+        if (firstRow.sessionTime) {
+          label += ` เวลา ${formatTimeFromIso(firstRow.sessionTime)} น.`;
+        }
         return label;
       }
     }
@@ -496,7 +537,7 @@ const ManagePage = {
       let formattedLabel = `รอบวันที่ ${day} ${monthText} ${yearTH}`;
       
       if (firstRow && (firstRow.sessionTime || firstRow.time)) {
-        const timeVal = firstRow.sessionTime || firstRow.time;
+        const timeVal = formatTimeFromIso(firstRow.sessionTime || firstRow.time);
         formattedLabel += ` เวลา ${timeVal}`;
         if (!String(timeVal).endsWith('น.')) formattedLabel += ' น.';
       } else {
