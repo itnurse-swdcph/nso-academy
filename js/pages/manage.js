@@ -226,7 +226,7 @@ const ManagePage = {
   },
 
   // ===================================================
-  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันอัปเดตภาษาไทย + UI พรีเมียมคลีน)
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน 
   // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
     if (!trainingId) {
@@ -255,12 +255,14 @@ const ManagePage = {
     });
 
     try {
-      // โหลดข้อมูลการลงทะเบียนทั้งหมด และ ข้อมูลรอบการอบรม (Sessions) ควบคู่กัน
-      const [allRegistrations, sessionsData] = await Promise.all([
+      // โหลดข้อมูลการลงทะเบียน ข้อมูลรอบการอบรม และ **ข้อมูลหัวข้ออบรม (เพื่อเอาสถานที่จัด)**
+      const [allRegistrations, sessionsData, tDetail] = await Promise.all([
         API.getRegistrationsByTraining(trainingId),
-        API.getTrainingSessions(trainingId).catch(() => [])
+        API.getTrainingSessions(trainingId).catch(() => []),
+        API.getTrainingById(trainingId).catch(() => null)
       ]);
       
+      const printTrainingObj = tDetail || { title: title, location: 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' };
       const currentTrainingIdStr = String(trainingId).trim();
       
       const participants = (allRegistrations || []).filter(p => {
@@ -279,17 +281,7 @@ const ManagePage = {
         return;
       }
 
-      const positionStats = {
-        'พยาบาลวิชาชีพ': 0,
-        'เจ้าพนักงานสาธารณสุข': 0,
-        'นักวิชาการสาธารณสุข': 0,
-        'เจ้าพนักงานฉุกเฉินการแพทย์': 0,
-        'พนักงานช่วยเหลือคนไข้': 0,
-        'พนักงานประจำตึก': 0,
-        'พนักงานเปล': 0,
-        'ตำแหน่งอื่นๆ': 0
-      };
-
+      const positionStats = { 'พยาบาลวิชาชีพ': 0, 'เจ้าพนักงานสาธารณสุข': 0, 'นักวิชาการสาธารณสุข': 0, 'เจ้าพนักงานฉุกเฉินการแพทย์': 0, 'พนักงานช่วยเหลือคนไข้': 0, 'พนักงานประจำตึก': 0, 'พนักงานเปล': 0, 'ตำแหน่งอื่นๆ': 0 };
       const sessionGroups = {};
 
       participants.forEach(p => {
@@ -303,18 +295,15 @@ const ManagePage = {
         sessionGroups[sId].push(p);
       });
 
-      // สรุปยอด Dashboard ส่วนบน
       const totalParticipants = participants.length;
       let statsHtml = `
         <div style="margin-bottom: var(--space-6);">
           <div style="display:flex; gap: var(--space-4); flex-wrap: wrap;">
-            
             <div class="stat-card" style="flex: 1; min-width: 200px; background: var(--white); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); text-align: center; box-shadow: var(--shadow-sm);">
               <div style="color: var(--gray-500); font-size: var(--text-sm); margin-bottom: var(--space-1);">ผู้ลงทะเบียนทั้งหมด</div>
               <div style="font-size: 2.2rem; font-weight: var(--fw-bold); color: var(--navy-700);">${totalParticipants}</div>
               <div style="font-size: var(--text-xs); color: var(--gray-400);">คน</div>
             </div>
-
             <div class="stat-card" style="flex: 3; min-width: 300px; background: var(--white); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm);">
               <div style="color: var(--gray-500); font-size: var(--text-sm); margin-bottom: var(--space-3); border-bottom: 1px solid var(--gray-100); padding-bottom: var(--space-2);">สัดส่วนตำแหน่งผู้เข้าอบรม</div>
               <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
@@ -332,13 +321,9 @@ const ManagePage = {
       });
       statsHtml += `</div></div></div></div>`;
 
-      // วนลูปสร้างตารางแยกตามกลุ่มรอบการอบรมที่แปลงค่าแล้ว
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
-        
-        // 🛑 [จุดแก้ไขสำคัญ]: ดึงวันที่และเวลาจากฐานข้อมูลกลาง (sessionsData)
         const textSessionThai = this._formatSessionThai(sId, list, sessionsData);
-
         tablesHtml += `
           <div class="card" style="margin-bottom: var(--space-6); border-top: 4px solid var(--navy-600); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);">
             <div class="card-body" style="padding: var(--space-4_5);">
@@ -388,11 +373,16 @@ const ManagePage = {
       contentDiv.style.padding = '0';
       contentDiv.style.textAlign = 'left';
 
+      // เรียกเปิดหน้า Print โดยส่ง Object ข้อมูลอบรมและรอบไปด้วย
       document.querySelectorAll('.print-sheet-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const currentBtn = e.target.closest('.print-sheet-btn');
           const sessionKey = currentBtn.dataset.session;
-          this._printSignInSheet(title, sessionKey, sessionGroups[sessionKey]);
+          const realSession = sessionsData.find(s => 
+            String(s.sessionId).trim() === String(sessionKey).trim() || 
+            String(s.id).trim() === String(sessionKey).trim()
+          );
+          this._printSignInSheet(printTrainingObj, realSession || { id: sessionKey }, sessionGroups[sessionKey]);
         });
       });
 
@@ -572,14 +562,109 @@ const ManagePage = {
     return 'ตำแหน่งอื่นๆ';
   },
 
-  _printSignInSheet(courseTitle, sessionId, participantsList) {
+  _printSignInSheet(trainingObj, sessionObj, participantsList) {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       UI.error('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาอนุญาต Pop-up บนเบราว์เซอร์');
       return;
     }
 
-    // จัดกลุ่มตามหน่วยงาน (เหมือนในหน้า Verify)
+    const courseTitle = trainingObj.title || 'ไม่ระบุหัวข้อ';
+    const location = trainingObj.location || 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน';
+    const sId = sessionObj.sessionId || sessionObj.id || 'ไม่ระบุรอบ';
+
+    // จัดการฟอร์แมตวันที่ให้เป็น "วันที่ XX เดือน XXXXX พ.ศ.XXXX"
+    const toThaiDateFullPrint = (dateStr) => {
+      if (!dateStr) return { day: '', month: '', year: '' };
+      let match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      let year, month, day;
+      if (match) {
+        year = parseInt(match[1]); month = parseInt(match[2]); day = parseInt(match[3]);
+      } else {
+        match = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (match) {
+          day = parseInt(match[1]); month = parseInt(match[2]); year = parseInt(match[3]);
+        }
+      }
+      if (day && month && year) {
+        const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const thYear = year < 2400 ? year + 543 : year;
+        return { day, month: thaiMonthsFull[month - 1], year: thYear };
+      }
+      return { day: dateStr, month: '', year: '' };
+    };
+
+    // จัดการเวลาให้อยู่ในฟอร์แมต "HH.MM" (ใช้จุดแทน colon ตามโครงสร้างราชการ)
+    const formatTimePrint = (timeStr) => {
+      if (!timeStr) return '';
+      const str = String(timeStr).trim();
+      if (str.includes('T') && str.includes('Z')) {
+        const match = str.match(/T(\d{2}):(\d{2}):(\d{2})/);
+        if (match) {
+          let h = parseInt(match[1], 10);
+          let m = parseInt(match[2], 10);
+          let s = parseInt(match[3], 10);
+          h = (h + 7) % 24;
+          if (str.startsWith('1899-12-30')) {
+            m -= 17; s -= 56;
+            if (s < 0) { s += 60; m -= 1; }
+            if (m < 0) { m += 60; h -= 1; }
+            if (h < 0) { h += 24; }
+            m = Math.round(m / 5) * 5;
+            if (m === 60) { m = 0; h = (h + 1) % 24; }
+          }
+          const hh = String(h).padStart(2, '0');
+          const mm = String(m).padStart(2, '0');
+          return `${hh}.${mm}`; 
+        }
+      }
+      return str.replace(':', '.'); 
+    };
+
+    // รวบรวมข้อความ Header บรรทัดที่ 3
+    let dateText = '';
+    let timeText = '';
+
+    const dateVal = sessionObj.date || sessionObj.sessionDate;
+    if (dateVal) {
+      const dObj = toThaiDateFullPrint(dateVal);
+      if (dObj.month) {
+        dateText = `วันที่ ${dObj.day} เดือน ${dObj.month} พ.ศ.${dObj.year}`;
+      } else {
+        dateText = `วันที่ ${dateVal}`;
+      }
+    } else {
+      const regex = /SES-(\d{4})(\d{2})(\d{2})/i;
+      const match = String(sId).match(regex);
+      if (match) {
+        const yearEN = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10);
+        const day = parseInt(match[3], 10);
+        const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        dateText = `วันที่ ${day} เดือน ${thaiMonthsFull[month - 1]} พ.ศ.${yearEN + 543}`;
+      } else {
+        dateText = `รอบรหัส ${sId}`;
+      }
+    }
+
+    const sTime = formatTimePrint(sessionObj.startTime);
+    const eTime = formatTimePrint(sessionObj.endTime);
+    if (sTime && eTime) {
+      timeText = `เวลา ${sTime}-${eTime} น.`;
+    } else if (sessionObj.time) {
+      timeText = `เวลา ${formatTimePrint(sessionObj.time)} น.`;
+    } else {
+       const firstRow = participantsList && participantsList[0];
+       if (firstRow && (firstRow.sessionTime || firstRow.time)) {
+           timeText = `เวลา ${formatTimePrint(firstRow.sessionTime || firstRow.time)} น.`;
+       } else {
+           timeText = '(ไม่ระบุเวลา)';
+       }
+    }
+
+    const headerLine3 = `${dateText} ${timeText} ณ ${location}`;
+
+    // จัดเรียงตามหน่วยงาน
     const sortedList = [...participantsList].sort((a, b) =>
       (a.department || '').localeCompare(b.department || '', 'th')
     );
@@ -602,8 +687,8 @@ const ManagePage = {
         <tr>
           <td style="text-align:center; padding:8px; border:1px solid #333;">${no++}</td>
           <td style="padding:8px; border:1px solid #333;">${p.fullName || '-'}</td>
-          <td style="padding:8px; border:1px solid #333;">${p.position || '-'}</td>
-          <td style="padding:8px; border:1px solid #333;">${p.department || '-'}</td>
+          <td style="padding:8px; border:1px solid #333; word-break: break-word;">${p.position || '-'}</td>
+          <td style="padding:8px; border:1px solid #333; word-break: break-word;">${p.department || '-'}</td>
           <td style="text-align:center; padding:8px; border:1px solid #333;"></td>
         </tr>`;
     });
@@ -616,15 +701,8 @@ const ManagePage = {
         <title>ใบลงทะเบียน - ${courseTitle}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-          body {
-            font-family: 'Sarabun', sans-serif;
-            color: #000;
-            background: #fff;
-            margin: 0;
-            padding: 20px;
-          }
+          body { font-family: 'Sarabun', sans-serif; color: #000; background: #fff; margin: 0; padding: 20px; }
           
-          /* การตั้งค่าหน้ากระดาษและ Print Layout */
           @media print {
             @page { size: A4 landscape; margin: 15mm; }
             body { padding: 0 !important; margin: 0 !important; -webkit-print-color-adjust: exact; }
@@ -639,12 +717,7 @@ const ManagePage = {
           .print-header-content h2 { font-size: 16pt; font-weight: bold; margin: 0 0 5px 0; }
           .print-header-content h3 { font-size: 14pt; font-weight: normal; margin: 0 0 5px 0; }
 
-          .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11pt;
-            margin-top: 10px;
-          }
+          .print-table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 10px; }
           .print-table th, .print-table td { border: 1px solid #333; }
         </style>
       </head>
@@ -662,16 +735,16 @@ const ManagePage = {
                 <div class="print-header-content">
                   <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
                   <h2>เรื่อง: ${courseTitle}</h2>
-                  <h3>รอบการอบรม (รหัส: ${sessionId})</h3>
+                  <h3>${headerLine3}</h3>
                 </div>
               </td>
             </tr>
             <tr style="background:#e5e7eb; font-weight:bold; text-align:center;">
               <th style="width: 5%; padding: 10px;">ลำดับ</th>
-              <th style="width: 25%; padding: 10px;">ชื่อ - นามสกุล</th>
-              <th style="width: 20%; padding: 10px;">ตำแหน่ง</th>
-              <th style="width: 20%; padding: 10px;">หน่วยงาน/สังกัด</th>
-              <th style="width: 30%; padding: 10px;">ลายมือชื่อ</th>
+              <th style="width: 20%; padding: 10px;">ชื่อ - นามสกุล</th>
+              <th style="width: 25%; padding: 10px;">ตำแหน่ง</th>
+              <th style="width: 30%; padding: 10px;">หน่วยงาน/สังกัด</th>
+              <th style="width: 20%; padding: 10px;">ลายมือชื่อ</th>
             </tr>
           </thead>
           <tbody>
@@ -684,7 +757,6 @@ const ManagePage = {
         </div>
         
         <script>
-          // หน่วงเวลาเล็กน้อยให้ฟอนต์และเนื้อหาโหลดเสร็จก่อนเปิดหน้าต่าง Print
           window.onload = () => { setTimeout(() => window.print(), 500); }
         </script>
       </body>
