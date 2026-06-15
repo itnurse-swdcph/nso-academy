@@ -1,6 +1,6 @@
 /**
  * manage.js — Module 4: Management Hub
- * ส่วนขยายฟังก์ชัน: ตรวจสอบรายชื่อสำหรับแอดมิน (เวอร์ชันแก้ไข Bug กรองข้อมูลตามหัวข้ออบรมปัจจุบัน)
+ * ส่วนขยายฟังก์ชัน: ตรวจสอบรายชื่อสำหรับแอดมิน (เวอร์ชันแก้ไข Bug ข้อมูลไม่แสดง และปรับปรุง Filter Logic)
  */
 
 const ManagePage = {
@@ -226,9 +226,15 @@ const ManagePage = {
   },
 
   // ===================================================
-  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เพิ่ม Logic กรองข้อมูล)
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข Logic Filter)
   // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
+    // 1. Lifecycle Check: ตรวจสอบให้แน่ใจว่ามีข้อมูล trainingId ก่อนเริ่มทำงาน
+    if (!trainingId) {
+      UI.error('เกิดข้อผิดพลาด: ไม่พบรหัสหัวข้ออบรม (trainingId is missing)');
+      return;
+    }
+
     container.innerHTML = `
       <div class="animate-fade-in">
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:center;">
@@ -250,23 +256,34 @@ const ManagePage = {
     });
 
     try {
-      // ดึงข้อมูลรายชื่อจากฐานข้อมูล (สมมติฐานว่า API ส่งมาทั้งหมด)
+      // 2. ดึงข้อมูลทั้งหมดจาก API (ชีต REGISTRATIONS)
       const allRegistrations = await API.getParticipants(trainingId);
       
-      // จุดแก้ไขสำคัญที่ 1 & 2: ทำการ Filter ให้เหลือเฉพาะแถวที่มี trainingId ตรงกับหน้าจัดการปัจจุบันเท่านั้น
-      const participants = (allRegistrations || []).filter(p => String(p.trainingId) === String(trainingId));
+      // 3. ปรับปรุง Logic การกรองข้อมูล (Filter) 
+      // - บังคับแปลงเป็น String ทั้ง 2 ฝั่งเพื่อกันปัญหา Data Type
+      // - ใช้ .trim() ตัดช่องว่างที่อาจติดมากับข้อมูลในชีต
+      const currentTrainingIdStr = String(trainingId).trim();
       
+      const participants = (allRegistrations || []).filter(p => {
+        if (!p) return false;
+        
+        // รับรองกรณีชื่อ key สะกดผิดพลาดจากฝั่ง Backend
+        const rowTrainingId = p.trainingId || p.TrainingId || ''; 
+        
+        return String(rowTrainingId).trim() === currentTrainingIdStr;
+      });
+      
+      // เช็คว่ามีข้อมูลที่ตรงกับเงื่อนไขหรือไม่
       if (!participants || participants.length === 0) {
         document.getElementById('adminVerifyContent').innerHTML = `
           <div class="empty-state">
             <div class="empty-icon"><i class="fa-solid fa-users-slash"></i></div>
             <h3>ยังไม่มีผู้ลงทะเบียน</h3>
-            <p>ไม่พบข้อมูลการลงทะเบียนในระบบสำหรับหลักสูตรนี้</p>
+            <p>ไม่พบข้อมูลการลงทะเบียนในระบบสำหรับหลักสูตร <strong>${title}</strong></p>
           </div>`;
         return;
       }
 
-      // โครงสร้างสำหรับเก็บสถิติตำแหน่งงาน
       const positionStats = {
         'พยาบาลวิชาชีพ': 0,
         'เจ้าพนักงานสาธารณสุข': 0,
@@ -278,16 +295,15 @@ const ManagePage = {
         'ตำแหน่งอื่นๆ': 0
       };
 
-      // โครงสร้าง Object เพื่อใช้ในการจัดกลุ่มด้วย 'sessionId'
       const sessionGroups = {};
 
-      // จุดแก้ไขที่ 3: วนลูปเฉพาะ participants ที่ถูกกรองแล้ว มาจำแนกยอดและจัดกลุ่ม
+      // 4. จัดกลุ่มข้อมูล (Group By) ตาม Session Id หลังจากการกรองเสร็จสิ้น
       participants.forEach(p => {
         const posGroup = this._categorizePosition(p.position || '');
         positionStats[posGroup] += 1;
 
-        // จัดกลุ่มตาม sessionId
-        const sId = p.sessionId || 'รอบทั่วไป';
+        // ดักจับ sessionId เป็น String ป้องกันข้อผิดพลาด
+        const sId = p.sessionId ? String(p.sessionId).trim() : 'รอบทั่วไป';
         if (!sessionGroups[sId]) {
           sessionGroups[sId] = [];
         }
@@ -315,7 +331,7 @@ const ManagePage = {
       });
       statsHtml += `</div></div></div>`;
 
-      // จุดแก้ไขที่ 4: วนลูปสร้างตารางแยกตามกลุ่ม sessionId
+      // วนลูปสร้างตารางแยกตามกลุ่ม sessionId
       let tablesHtml = `<div>`;
       Object.entries(sessionGroups).forEach(([sId, list]) => {
         tablesHtml += `
@@ -364,7 +380,6 @@ const ManagePage = {
       contentDiv.style.padding = '0';
       contentDiv.style.textAlign = 'left';
 
-      // Bind Event สำหรับปุ่มพิมพ์ใบเซ็นชื่อแต่ละรอบ
       document.querySelectorAll('.print-sheet-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const currentBtn = e.target.closest('.print-sheet-btn');
