@@ -226,7 +226,7 @@ const ManagePage = {
   },
 
   // ===================================================
-  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข Logic Filter)
+  // ฟังก์ชันย่อย: ตรวจสอบรายชื่อแอดมิน (เวอร์ชันแก้ไข บั๊กไม่แสดงรายชื่อ)
   // ===================================================
   async _renderAdminVerification(container, trainingId, title) {
     // 1. Lifecycle Check: ตรวจสอบให้แน่ใจว่ามีข้อมูล trainingId ก่อนเริ่มทำงาน
@@ -256,12 +256,11 @@ const ManagePage = {
     });
 
     try {
-      // 2. ดึงข้อมูลทั้งหมดจาก API (ชีต REGISTRATIONS)
-      const allRegistrations = await API.getParticipants(trainingId);
+      // 🛑 [จุดที่แก้ไขที่ 1]: เปลี่ยนจากการเรียก getParticipants เป็น getRegistrationsByTraining 
+      // เพื่อดึงข้อมูลจากชีต REGISTRATIONS อย่างถูกต้อง
+      const allRegistrations = await API.getRegistrationsByTraining(trainingId);
       
-      // 3. ปรับปรุง Logic การกรองข้อมูล (Filter) 
-      // - บังคับแปลงเป็น String ทั้ง 2 ฝั่งเพื่อกันปัญหา Data Type
-      // - ใช้ .trim() ตัดช่องว่างที่อาจติดมากับข้อมูลในชีต
+      // 🛑 [จุดที่แก้ไขที่ 2]: ปรับปรุง Logic การกรองข้อมูล (Filter) ป้องกันปัญหา Type String vs Number
       const currentTrainingIdStr = String(trainingId).trim();
       
       const participants = (allRegistrations || []).filter(p => {
@@ -297,7 +296,7 @@ const ManagePage = {
 
       const sessionGroups = {};
 
-      // 4. จัดกลุ่มข้อมูล (Group By) ตาม Session Id หลังจากการกรองเสร็จสิ้น
+      // จัดกลุ่มข้อมูล (Group By) ตาม Session Id
       participants.forEach(p => {
         const posGroup = this._categorizePosition(p.position || '');
         positionStats[posGroup] += 1;
