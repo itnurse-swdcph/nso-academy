@@ -277,30 +277,51 @@ const Utils = {
     // Hospital Header Text
     ctx.fillStyle = '#00897b';
     ctx.font = 'bold 20px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', width / 2, 80);
+    ctx.fillText('ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', width / 2, 70);
 
     // Subtitle
     ctx.fillStyle = '#64748b';
     ctx.font = '500 18px "Sarabun", "Prompt", sans-serif';
     ctx.fillText('NSO ACADEMY TRAINING REGISTRATION', width / 2, 115);
 
-    // Course Title text-wrapping
+    // Course Title text-wrapping - improved for better Thai text handling
     ctx.fillStyle = '#0D2B5E';
     ctx.font = 'bold 32px "Prompt", "Sarabun", sans-serif';
     
-    // Wrap title
+    // Wrap title with better logic
     const maxTextWidth = width - 120;
-    const cleanTitle = title.replace(/\s+/g, ' ');
+    const cleanTitle = title.replace(/\s+/g, ' ').trim();
     let lines = [];
+    
+    // Try to fit title on one line first
     if (ctx.measureText(cleanTitle).width <= maxTextWidth) {
-      lines.push(cleanTitle);
+      lines = [cleanTitle];
     } else {
-      let currentIdx = 0;
-      while (currentIdx < cleanTitle.length) {
-        let chunkLength = 28;
-        let chunk = cleanTitle.substring(currentIdx, currentIdx + chunkLength);
-        lines.push(chunk);
-        currentIdx += chunkLength;
+      // Split by space if possible, otherwise split by character count
+      const words = cleanTitle.split(' ');
+      let currentLine = '';
+      
+      words.forEach(word => {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        if (ctx.measureText(testLine).width <= maxTextWidth) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      });
+      if (currentLine) lines.push(currentLine);
+      
+      // If still too long, split by character
+      if (lines.length > 2 || (lines[lines.length - 1] && ctx.measureText(lines[lines.length - 1]).width > maxTextWidth)) {
+        lines = [];
+        let currentIdx = 0;
+        while (currentIdx < cleanTitle.length) {
+          let chunkLength = 24;
+          let chunk = cleanTitle.substring(currentIdx, currentIdx + chunkLength);
+          lines.push(chunk);
+          currentIdx += chunkLength;
+        }
       }
     }
 
@@ -308,12 +329,15 @@ const Utils = {
     const titleY = 165;
     if (lines.length === 1) {
       ctx.fillText(lines[0], width / 2, titleY);
+    } else if (lines.length === 2) {
+      ctx.fillText(lines[0], width / 2, titleY - 20);
+      ctx.fillText(lines[1], width / 2, titleY + 20);
     } else {
       ctx.fillText(lines[0], width / 2, titleY - 20);
-      ctx.fillText(lines[1] + (lines[2] ? '...' : ''), width / 2, titleY + 20);
+      ctx.fillText(lines[1] + '...', width / 2, titleY + 20);
     }
 
-    // 3. QR Code generation & drawing
+    // 3. QR Code generation & drawing with better error correction
     const qrSize = 400;
     const qrCanvas = document.createElement('canvas');
     new QRious({
@@ -322,7 +346,7 @@ const Utils = {
       size: qrSize,
       foreground: '#0D2B5E',
       background: '#FFFFFF',
-      level: 'H'
+      level: 'H' // High error correction for better scannability
     });
 
     const qrX = (width - qrSize) / 2;
@@ -364,7 +388,7 @@ const Utils = {
     // System name footer
     ctx.fillStyle = '#94a3b8';
     ctx.font = '14px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('ระบบบริหารจัดการการศึกษาและฝึกอบรมกลุ่มภารกิจด้านการพยาบาล', width / 2, 970);
+    ctx.fillText('ระบบบริหารจัดการการศึกษาและฝึกอบรมกลุ่มภารกิจด้านการพยาบาล', width / 2, 965);
     ctx.fillText('NSO ACADEMY © 2026', width / 2, 995);
 
     // Trigger download
@@ -452,10 +476,10 @@ const Utils = {
     }, 1000);
   },
 
- /**
-   * สร้าง HTML สำหรับใบเซ็นชื่อ (เอกสารราชการสไตล์ไทย)
-   * รองรับการพิมพ์แนวนอน (Landscape) และแสดงหัวกระดาษซ้ำทุกหน้า
-   */
+  /**
+    * สร้าง HTML สำหรับใบเซ็นชื่อ (เอกสารราชการสไตล์ไทย)
+    * รองรับการพิมพ์แนวนอน (Landscape) และแสดงหัวกระดาษซ้ำทุกหน้า
+    */
   buildAttendanceHTML(training, session, registrations) {
     const sessionDateStr = session.sessionDate
       ? Utils.thaiDate(session.sessionDate, 'long')

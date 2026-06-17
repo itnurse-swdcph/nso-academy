@@ -8,7 +8,7 @@ const SatisfactionService = {
    * บันทึกคำถามความพึงพอใจ
    */
   saveForm: function(payload) {
-    // payload = { trainingId, questions: [{ order, questionText, questionType, isRequired }] }
+    // payload = { trainingId, trainingTitle, questions: [{ order, questionText, questionType, isRequired }] }
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(5000)) throw new Error("ระบบล็อกอยู่กรุณาลองใหม่");
 
@@ -32,6 +32,7 @@ const SatisfactionService = {
           return {
             formQuestionId: `SFQ-${payload.trainingId.replace("TRN-", "")}-${idx + 1}`,
             trainingId: payload.trainingId,
+            trainingTitle: payload.trainingTitle || '',
             order: idx + 1,
             questionText: q.questionText,
             questionType: q.questionType, // RATING or TEXT
@@ -62,7 +63,7 @@ const SatisfactionService = {
    * ส่งผลตอบประเมินความพึงพอใจ
    */
   submitResponse: function(payload) {
-    // payload = { trainingId, participantId, responses: [{ formQuestionId, ratingValue, textValue }] }
+    // payload = { trainingId, participantId, position, responses: [{ formQuestionId, ratingValue, textValue }] }
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(5000)) throw new Error("ส่งแบบประเมินล้มเหลวเนื่องจากระบบประมวลผลอยู่");
 
@@ -73,6 +74,7 @@ const SatisfactionService = {
           formQuestionId: res.formQuestionId,
           trainingId: payload.trainingId,
           participantId: payload.participantId,
+          position: payload.position || '',
           ratingValue: res.ratingValue !== undefined ? Number(res.ratingValue) : "",
           textValue: res.textValue || "",
           submittedAt: new Date()
