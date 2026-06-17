@@ -94,7 +94,7 @@ const SatisfactionPage = {
 
     // Default questions - ตั้งค่าเริ่มต้น 6 ข้อประเมินคะแนน + ข้อเสนอแนะ
     this._addQuestion('RATING', { 
-      questionText: '1. ด้านวิทยากร: ความรู้ความสามารถของวิทยากรในการถ่ายทอดเนื้อหาการอบรม',
+      questionText: '1. ด้านวิทยากร: ความรู้ความสามารถของวิทยากรในการถ่ายทอดเนื้อหา',
       isRequired: true 
     });
     this._addQuestion('RATING', { 
@@ -238,7 +238,7 @@ const SatisfactionPage = {
       const url  = `${base}#/satisfaction?id=${this._trainingId}&mode=take`;
       document.getElementById('satQrUrl').textContent = url;
       
-      // เพิ่มชื่อหัวข้ออบรมในเรื่อง QR
+      // เพิ่มชื่อหัวข้ออบรมในเรื่อง QR และหัวการ์ด
       if (this._trainingTitle) {
         document.getElementById('satQrTitle').textContent = this._trainingTitle;
       }
