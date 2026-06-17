@@ -70,11 +70,13 @@ const SatisfactionPage = {
             </div>
             <div class="qr-panel has-qr" style="width:260px;">
               <div class="qr-label"><i class="fa-solid fa-qrcode"></i> QR Code แบบประเมิน</div>
-              <div style="text-align: center; font-size: var(--text-xs); color: var(--gray-500); margin-bottom: var(--space-3); min-height: 20px;" id="satQrTitle"></div>
+              <div style="text-align: center; font-size: var(--text-xs); color: var(--gray-500); margin-bottom: var(--space-3); min-height: 20px; font-weight: var(--fw-semi);" id="satQrTitle"></div>
               <div class="qr-canvas-wrapper"><canvas id="satQRCanvas"></canvas></div>
               <div class="qr-url" id="satQrUrl">—</div>
-              <button class="btn btn-outline-navy btn-sm" style="margin-top:var(--space-2);"
-                onclick="SatisfactionPage._downloadQR()"><i class="fa-solid fa-download"></i> บันทึก QR</button>
+              <div style="display:flex; gap: var(--space-2); justify-content:center; margin-top: var(--space-3); flex-wrap: wrap;">
+                <button class="btn btn-outline-navy btn-sm" onclick="SatisfactionPage._downloadRawQR()"><i class="fa-solid fa-image"></i> โหลด QR</button>
+                <button class="btn btn-teal btn-sm" onclick="SatisfactionPage._downloadQRCard()"><i class="fa-solid fa-address-card"></i> โหลดการ์ดสวยงาม</button>
+              </div>
             </div>
           </div>
         </div>
@@ -89,7 +91,7 @@ const SatisfactionPage = {
 
     // Default questions - ตั้งค่าเริ่มต้น 6 ข้อประเมินคะแนน + ข้อเสนอแนะ
     this._addQuestion('RATING', { 
-      questionText: '1. ด้านวิทยากร: ความรู้ความสามารถของวิทยากรในการถ่ายทอดเนื้อหา',
+      questionText: '1. ด้านวิทยากร: ความรู้ความสามารถของวิทยากรในการถ่ายทอดเนื้อหาการอบรม',
       isRequired: true 
     });
     this._addQuestion('RATING', { 
@@ -263,17 +265,26 @@ const SatisfactionPage = {
     }
   },
 
-  _downloadQR() {
+  _downloadRawQR() {
     const canvas = document.getElementById('satQRCanvas');
     if (!canvas) return;
-    const link = document.createElement('a');
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
     let filename = `QR_Satisfaction_${this._trainingId}`;
     if (this._trainingTitle) {
       filename = `QR_${this._trainingTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${this._trainingId}`;
     }
-    link.download = `${filename}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    a.href = dataUrl;
+    a.download = `${filename}.png`;
+    a.click();
+  },
+
+  _downloadQRCard() {
+    const canvas = document.getElementById('satQRCanvas');
+    if (!canvas) return;
+
+    const title = this._trainingTitle || `ประเมินความพึงพอใจ (${this._trainingId})`;
+    Utils.downloadQRCard(title, canvas.toDataURL('image/png'), `satisfaction-card-${this._trainingId}`);
   },
 
   // ─── Take Form Mode ──────────────────────────────────────────
@@ -284,7 +295,7 @@ const SatisfactionPage = {
       const form = await API.getSatisfactionForm(this._trainingId);
 
       if (!form?.length) {
-        UI.showEmpty(container, { icon: '<i class="fa-solid fa-star"></i>', title: 'ยังไม่มีแบบประเมิน', desc: 'ผู้ดูแลยังไม่ได้สร้างแบบประเมินสำหรับอบรมนี้' });
+        UI.showEmpty(container, { icon: '<i class="fa-solid fa-star"></i>', title: 'ยังไม่มีแบบประเมิน', desc: 'ผู้ดูแลยังไม่ได้สร้างแบบประเมินสำหรับการอบรมนี้' });
         return;
       }
 
@@ -299,7 +310,7 @@ const SatisfactionPage = {
             </div>
           </div>
           <div class="register-card">
-            <div class="form-group" style="margin-bottom:var(--space-6); padding: var(--space-5); background: var(--teal-50); border-radius: var(--radius-md); border-left: 4px solid var(--teal-500);">
+            <div class="form-group" style="margin-bottom:var(--space-6); padding: var(--space-5); background: var(--teal-50); border-radius: var(--radius-md); border-left: 4px solid var(--teal-600);">
               <div style="font-size: var(--text-sm); color: var(--gray-600); margin-bottom: var(--space-2);">
                 <i class="fa-solid fa-info-circle" style="color: var(--teal-600);"></i> <strong>กำลังประเมิน:</strong>
               </div>
