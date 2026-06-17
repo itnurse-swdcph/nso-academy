@@ -282,18 +282,36 @@ const SatisfactionPage = {
     a.click();
   },
 
-  _downloadQRCard() {
+  // เปลี่ยนเป็น async function เพื่อให้สามารถดึงข้อมูลจาก API ได้
+  async _downloadQRCard() {
     const canvas = document.getElementById('satQRCanvas');
     if (!canvas) return;
 
-    // สร้าง URL จริงๆ สำหรับทำ QR Code (แทนการส่งข้อมูล Base64 ของภาพ)
+    // --- 1. ตรวจสอบและดึงชื่อหัวข้ออบรมจาก Database หากข้อมูลหายไป ---
+    if (!this._trainingTitle && this._trainingId) {
+      try {
+        const training = await API.getTrainingById(this._trainingId);
+        if (training && training.title) {
+          this._trainingTitle = training.title;
+          
+          // อัปเดตข้อความ Title เหนือ QR Code บนหน้าเว็บให้ด้วย (เผื่อไว้)
+          const qrTitleEl = document.getElementById('satQrTitle');
+          if (qrTitleEl) qrTitleEl.textContent = this._trainingTitle;
+        }
+      } catch (e) {
+        console.warn('ไม่สามารถดึงข้อมูลหัวข้ออบรมได้', e);
+      }
+    }
+    // -----------------------------------------------------------
+
+    // 2. สร้าง URL จริงๆ สำหรับทำ QR Code (แทนการส่งข้อมูล Base64 ของภาพ)
     const base = window.location.href.split('#')[0];
     const url  = `${base}#/satisfaction?id=${this._trainingId}&mode=take`;
 
-    // ใช้ชื่อหัวข้ออบรม (ถ้ามี) หรือใช้คำเริ่มต้น
+    // 3. ตอนนี้ this._trainingTitle จะมีค่าแล้ว (ถ้าดึงสำเร็จ)
     const title = this._trainingTitle || `ประเมินความพึงพอใจ (${this._trainingId})`;
     
-    // ส่ง url แทน canvas.toDataURL()
+    // 4. ส่งข้อมูลไปสร้างการ์ด
     Utils.downloadQRCard(title, url, `satisfaction-card-${this._trainingId}`);
   },
 
