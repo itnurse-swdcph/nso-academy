@@ -74,11 +74,35 @@ const SatisfactionPage = {
     document.getElementById('saveSatBtn').addEventListener('click', () => this._saveForm());
     document.getElementById('loadSatBtn').addEventListener('click', () => this._loadExisting());
 
-    // Default questions
-    this._addQuestion('RATING', { questionText: 'ท่านมีความพึงพอใจต่อเนื้อหาการอบรมในระดับใด?' });
-    this._addQuestion('RATING', { questionText: 'ท่านมีความพึงพอใจต่อวิทยากรในระดับใด?' });
-    this._addQuestion('RATING', { questionText: 'ท่านมีความพึงพอใจต่อสถานที่/สิ่งอำนวยความสะดวกในระดับใด?' });
-    this._addQuestion('TEXT',   { questionText: 'ข้อเสนอแนะเพิ่มเติม (ถ้ามี)', isRequired: false });
+    // Default questions - ตั้งค่าเริ่มต้น 6 ข้อประเมินคะแนน + ข้อเสนอแนะ
+    this._addQuestion('RATING', { 
+      questionText: '1. ด้านวิทยากร: ความรู้ความสามารถของวิทยากรในการถ่ายทอดเนื้อหาการอบรม',
+      isRequired: true 
+    });
+    this._addQuestion('RATING', { 
+      questionText: '2. ด้านเนื้อหา: เนื้อหามีความเหมาะสม',
+      isRequired: true 
+    });
+    this._addQuestion('RATING', { 
+      questionText: '3. ด้านการนำไปใช้ประโยชน์: สามารถนำความรู้ไปพัฒนางาน และประยุกต์ใช้ในการทำงาน',
+      isRequired: true 
+    });
+    this._addQuestion('RATING', { 
+      questionText: '4. สถานที่และระยะเวลาอบรมมีความเหมาะสม',
+      isRequired: true 
+    });
+    this._addQuestion('RATING', { 
+      questionText: '5. ด้านบริการ: ความเหมาะสมของอาหารและเครื่องดื่ม',
+      isRequired: true 
+    });
+    this._addQuestion('RATING', { 
+      questionText: '6. ภาพรวม: ความพึงพอใจในภาพรวมต่อการอบรมครั้งนี้',
+      isRequired: true 
+    });
+    this._addQuestion('TEXT', { 
+      questionText: '7. ข้อเสนอแนะเพิ่มเติม (ระบุ)',
+      isRequired: false 
+    });
   },
 
   _addQuestion(type, data = {}) {
@@ -240,7 +264,7 @@ const SatisfactionPage = {
       ]);
 
       if (!form?.length) {
-        UI.showEmpty(container, { icon: '<i class="fa-solid fa-star"></i>', title: 'ยังไม่มีแบบประเมิน', desc: 'ผู้ดูแลยังไม่ได้สร้างแบบประเมิน' });
+        UI.showEmpty(container, { icon: '<i class="fa-solid fa-star"></i>', title: 'ยังไม่มีแบบประเมิน', desc: 'ผู้ดูแลยังไม่ได้สร้างแบบประเมินสำหรับการอบรมนี้' });
         return;
       }
 
