@@ -309,7 +309,7 @@ const SatisfactionPage = {
     const url  = `${base}#/satisfaction?id=${this._trainingId}&mode=take`;
 
     // 3. ตอนนี้ this._trainingTitle จะมีค่าแล้ว (ถ้าดึงสำเร็จ)
-    const title = this._trainingTitle || `ประเมินความพึงพอใจ (${this._trainingId})`;
+    const title = `ประเมินความพึงพอใจ ${this._trainingTitle || `(${this._trainingId})`}`;
     
     // 4. ส่งข้อมูลไปสร้างการ์ด
     Utils.downloadQRCard(title, url, `satisfaction-card-${this._trainingId}`);
