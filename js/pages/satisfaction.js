@@ -286,8 +286,15 @@ const SatisfactionPage = {
     const canvas = document.getElementById('satQRCanvas');
     if (!canvas) return;
 
+    // สร้าง URL จริงๆ สำหรับทำ QR Code (แทนการส่งข้อมูล Base64 ของภาพ)
+    const base = window.location.href.split('#')[0];
+    const url  = `${base}#/satisfaction?id=${this._trainingId}&mode=take`;
+
+    // ใช้ชื่อหัวข้ออบรม (ถ้ามี) หรือใช้คำเริ่มต้น
     const title = this._trainingTitle || `ประเมินความพึงพอใจ (${this._trainingId})`;
-    Utils.downloadQRCard(title, canvas.toDataURL('image/png'), `satisfaction-card-${this._trainingId}`);
+    
+    // ส่ง url แทน canvas.toDataURL()
+    Utils.downloadQRCard(title, url, `satisfaction-card-${this._trainingId}`);
   },
 
   // ─── Take Form Mode ──────────────────────────────────────────
@@ -295,6 +302,20 @@ const SatisfactionPage = {
     if (!this._trainingId) { UI.showError(container, 'ไม่พบรหัสการอบรม'); return; }
     UI.showPageLoader(container);
     try {
+
+      // --- เพิ่มโค้ดส่วนนี้: ตรวจสอบและ Fetch Title ของอบรมหากข้อมูลหายไป ---
+      if (!this._trainingTitle) {
+        try {
+          const training = await API.getTrainingById(this._trainingId);
+          if (training && training.title) {
+            this._trainingTitle = training.title;
+          }
+        } catch (e) {
+          console.warn('ไม่สามารถดึงข้อมูลหัวข้ออบรมได้', e);
+        }
+      }
+      // -----------------------------------------------------------
+
       const form = await API.getSatisfactionForm(this._trainingId);
 
       if (!form?.length) {
