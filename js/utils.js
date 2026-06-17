@@ -320,7 +320,7 @@ const Utils = {
       element: qrCanvas,
       value: url,
       size: qrSize,
-      foreground: '#0D2B5E',
+      foreground: '#000000', // แก้ไข 1: เปลี่ยนจาก #0D2B5E (สีกรมท่า) เป็นสีดำสนิทเพื่อ Contrast สูงสุด
       background: '#FFFFFF',
       level: 'H'
     });
@@ -335,10 +335,11 @@ const Utils = {
     ctx.shadowOffsetY = 10;
     
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
+    // แก้ไข 2: เพิ่มขอบขาว Margin (Quiet zone) รอบ QR Code จาก 20 เป็น 30 ให้เซ็นเซอร์กล้องสแกนง่ายขึ้น
+    ctx.fillRect(qrX - 30, qrY - 30, qrSize + 60, qrSize + 60); 
     ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 1;
-    ctx.strokeRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
+    ctx.strokeRect(qrX - 30, qrY - 30, qrSize + 60, qrSize + 60);
     
     // Reset shadow
     ctx.shadowColor = 'transparent';
