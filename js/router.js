@@ -102,6 +102,7 @@ const Router = {
 
     // Render
     if (route.component?.render) {
+      UI.showLoadingOverlay('กำลังโหลดหน้า...');
       try {
         this._container.innerHTML = '';
         await route.component.render(this._container, params);
@@ -111,6 +112,8 @@ const Router = {
       } catch (err) {
         console.error('[Router] Render error:', err);
         UI.showError(this._container, err.message, () => this._handleRoute());
+      } finally {
+        UI.hideLoadingOverlay();
       }
     }
   },
