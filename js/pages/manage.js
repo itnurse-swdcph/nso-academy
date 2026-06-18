@@ -70,21 +70,26 @@ const ManagePage = {
     }
     document.getElementById('unlockBtn').addEventListener('click', () => this._handleUnlock(container));
     
-    document.getElementById('adminLoginBtn').addEventListener('click', () => {
+    document.getElementById('adminLoginBtn').addEventListener('click', async () => {
       if (isAdmin) {
+        const confirmed = await UI.confirm('ต้องการออกจากระบบแอดมินหรือไม่?', 'ออกจากระบบ');
+        if (!confirmed) return;
+        UI.showLoadingOverlay('กำลังออกจากระบบ...');
         Utils.storage.remove('admin_logged_in');
         UI.success('ออกจากระบบแอดมินแล้ว');
+        UI.hideLoadingOverlay();
         this._renderGate(container);
       } else {
-        UI.promptAdminLogin((password) => {
-          return password === '11450';
-        }).then((success) => {
-          if (success) {
-            Utils.storage.set('admin_logged_in', true);
-            UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
-            this._renderGate(container);
-          }
-        });
+        UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
+        UI.promptAdminLogin((password) => password === '11450')
+          .then((success) => {
+            UI.hideLoadingOverlay();
+            if (success) {
+              Utils.storage.set('admin_logged_in', true);
+              UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
+              this._renderGate(container);
+            }
+          });
       }
     });
   },
@@ -126,6 +131,7 @@ const ManagePage = {
 
     const btn = document.getElementById('unlockBtn');
     UI.setButtonLoading(btn, true, 'กำลังตรวจสอบ...');
+    UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
     errEl.classList.add('hidden');
 
     try {
@@ -138,6 +144,7 @@ const ManagePage = {
       errEl.classList.remove('hidden');
     } finally {
       UI.setButtonLoading(btn, false);
+      UI.hideLoadingOverlay();
     }
   },
 
@@ -159,7 +166,6 @@ const ManagePage = {
           </div>
           <div style="display:flex; gap: var(--space-2);">
             <button class="btn btn-outline-teal btn-sm" id="mgmtQRBtn"><i class="fa-solid fa-qrcode"></i> QR Code ลงทะเบียน</button>
-            <button class="btn btn-ghost btn-sm" id="logoutMgmtBtn"><i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ</button>
           </div>
         </div>
 
@@ -211,18 +217,6 @@ const ManagePage = {
     document.getElementById('mgmtQRBtn').addEventListener('click', () => {
       this._showQRModal(trainingId, title);
     });
-
-    document.getElementById('logoutMgmtBtn').addEventListener('click', async () => {
-      const ok = await UI.confirm('ต้องการออกจากระบบบริหารจัดการ?', 'ออกจากระบบ', 'danger');
-      if (ok) {
-        Utils.storage.remove('mgmt_unlock');
-        Utils.storage.remove('admin_logged_in');
-        this._unlockedTrainingId = null;
-        this._unlockedCode = null;
-        window.location.hash = '#/';
-        window.location.reload();
-      }
-    });
   },
 
   // ===================================================
@@ -261,10 +255,12 @@ const ManagePage = {
       if (el) el.textContent = text;
     };
 
+    UI.showLoadingOverlay('กำลังเชื่อมต่อเซิร์ฟเวอร์...');
     try {
       // โหลดข้อมูลแบบ Sequential เพื่อลดภาระ GAS backend (ซึ่งเป็น single-threaded)
       // ขั้นตอน 1: โหลดข้อมูลรอบการอบรม และข้อมูลหัวข้ออบรม (เบา)
       updateLoadingStatus('กำลังโหลดข้อมูลรอบการอบรม...');
+      UI.showLoadingOverlay('กำลังโหลดข้อมูลรอบการอบรม...');
       const [sessionsData, tDetail] = await Promise.all([
         API.getTrainingSessions(trainingId).catch(() => []),
         API.getTrainingById(trainingId).catch(() => null)
@@ -272,9 +268,11 @@ const ManagePage = {
 
       // ขั้นตอน 2: โหลดข้อมูลการลงทะเบียน (หนัก — ใช้เวลานาน)
       updateLoadingStatus('กำลังดึงข้อมูลรายชื่อผู้ลงทะเบียน...');
+      UI.showLoadingOverlay('กำลังดึงข้อมูลรายชื่อผู้ลงทะเบียน...');
       const allRegistrations = await API.getRegistrationsByTraining(trainingId);
       
       updateLoadingStatus('กำลังจำแนกและจัดกลุ่มข้อมูล...');
+      UI.showLoadingOverlay('กำลังจำแนกและจัดกลุ่มข้อมูล...');
       
       const printTrainingObj = tDetail || { title: title, location: 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' };
       const currentTrainingIdStr = String(trainingId).trim();
@@ -284,6 +282,8 @@ const ManagePage = {
         const rowTrainingId = p.trainingId || p.TrainingId || ''; 
         return String(rowTrainingId).trim() === currentTrainingIdStr;
       });
+
+      UI.hideLoadingOverlay();
       
       if (!participants || participants.length === 0) {
         document.getElementById('adminVerifyContent').innerHTML = `
@@ -402,6 +402,7 @@ const ManagePage = {
 
     } catch (err) {
       console.error('[Admin Verify] Load failed:', err);
+      UI.hideLoadingOverlay();
       const isTimeout = err.message.includes('หมดเวลา') || err.message.includes('AbortError');
       const contentDiv = document.getElementById('adminVerifyContent');
       if (contentDiv) {
