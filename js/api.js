@@ -7,9 +7,12 @@
 const API_CONFIG = {
   // ⚠️ เปลี่ยนเป็น URL ของ GAS Web App หลังจาก Deploy
   URL: 'https://script.google.com/macros/s/AKfycbwMKKoi2YGuiJTIVdTg94lyWZsNtM1Njxm4LJCxjfkrvaV4OEf7uHpx1C9UQ6c8mfGW/exec',
-  TIMEOUT: 30000,    // 30 วินาที
-  RETRY_ATTEMPTS: 3, // จำนวนครั้งที่ retry เมื่อเกิด network error
-  RETRY_DELAY: 1000  // milliseconds ระหว่าง retry
+  TIMEOUT: 45000,         // 45 วินาที (เพิ่มจาก 30 เพื่อรองรับ GAS cold start)
+  TIMEOUT_HEAVY: 90000,   // 90 วินาที สำหรับ action ที่โหลดข้อมูลเยอะ
+  RETRY_ATTEMPTS: 4,      // จำนวนครั้งที่ retry เมื่อเกิด network error
+  RETRY_DELAY: 1500,      // milliseconds ระหว่าง retry (exponential backoff)
+  // Action ที่ต้องใช้ timeout ยาวขึ้น (ข้อมูลเยอะหรือ GAS ประมวลผลนาน)
+  HEAVY_ACTIONS: ['getRegistrationsByTraining', 'getAnalytics', 'getAllParticipants', 'exportAttendancePDF', 'exportAnalyticsExcel']
 };
 
 const ApiService = {
@@ -26,8 +29,12 @@ const ApiService = {
       throw new Error('ไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาตรวจสอบการเชื่อมต่อ');
     }
 
+    // เลือก timeout ตาม action (heavy action ใช้เวลานานกว่า)
+    const isHeavy = API_CONFIG.HEAVY_ACTIONS.includes(action);
+    const timeout = isHeavy ? API_CONFIG.TIMEOUT_HEAVY : API_CONFIG.TIMEOUT;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
       const response = await fetch(API_CONFIG.URL, {
@@ -57,13 +64,14 @@ const ApiService = {
 
       // Retry สำหรับ network errors (ไม่ใช่ business logic errors)
       if (attempt < API_CONFIG.RETRY_ATTEMPTS && this._isNetworkError(err)) {
-        console.warn(`[API] Retry attempt ${attempt}/${API_CONFIG.RETRY_ATTEMPTS} for action: ${action}`);
-        await this._sleep(API_CONFIG.RETRY_DELAY * attempt);
+        const delay = API_CONFIG.RETRY_DELAY * Math.pow(1.5, attempt - 1); // exponential backoff
+        console.warn(`[API] Retry attempt ${attempt}/${API_CONFIG.RETRY_ATTEMPTS} for action: ${action} (wait ${Math.round(delay)}ms)`);
+        await this._sleep(delay);
         return this.request(action, payload, attempt + 1);
       }
 
       if (err.name === 'AbortError') {
-        throw new Error('หมดเวลาการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง');
+        throw new Error(`หมดเวลาการเชื่อมต่อ (${Math.round(timeout / 1000)}s) กรุณาลองใหม่อีกครั้ง`);
       }
 
       console.error(`[API] Error on action "${action}":`, err);
