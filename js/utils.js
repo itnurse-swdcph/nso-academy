@@ -1,608 +1,664 @@
-/**
- * utils.js — Utility Functions
- * Thai date, ID generation, QR code, Excel/PDF export, debounce
- */
+/* ==========================================================
+   pages.css — Page-Specific Styles
+   ========================================================== */
 
-const Utils = {
-  // ── Thai Buddhist Era Date ───────────────────────────────────
-  THAI_MONTHS: [
-    'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
-    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'
-  ],
-  THAI_MONTHS_SHORT: [
-    'ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
-    'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'
-  ],
-  THAI_DAYS: ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'],
+/* ── Home Dashboard ───────────────────────────────────────── */
+.dashboard-welcome {
+  background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-700) 50%, var(--teal-700) 100%);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-8) var(--space-10);
+  color: var(--white);
+  margin-bottom: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
 
-  /**
-   * แปลงวันที่เป็นรูปแบบไทย พ.ศ.
-   * @param {Date|string} date
-   * @param {'long'|'short'|'datetime'|'time'} format
-   */
-  thaiDate(date, format = 'long') {
-    if (!date) return '-';
-    if (typeof date === 'string' && date.includes('~')) {
-      const [start, end] = date.split('~');
-      return this.formatDateRange(start, end, format);
-    }
-    const d = date instanceof Date ? date : new Date(date);
-    if (isNaN(d.getTime())) {
-      const str = String(date);
-      if (str.includes('~')) {
-        const [start, end] = str.split('~');
-        return this.formatDateRange(start, end, format);
-      }
-      return String(date);
-    }
+.dashboard-welcome::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 200px;
+  height: 200px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 50%;
+}
+.dashboard-welcome::after {
+  content: '';
+  position: absolute;
+  bottom: -60px;
+  right: 80px;
+  width: 280px;
+  height: 280px;
+  background: rgba(0,137,123,0.20);
+  border-radius: 50%;
+}
 
-    // Shift timestamp to Thailand Standard Time (ICT, UTC+7)
-    const ictTime = d.getTime() + 7 * 60 * 60 * 1000;
-    const ictDate = new Date(ictTime);
+.welcome-content { position: relative; z-index: 1; }
 
-    const day   = ictDate.getUTCDate();
-    const month = ictDate.getUTCMonth();
-    const year  = ictDate.getUTCFullYear() + 543; // แปลง ค.ศ. → พ.ศ.
-    const hours = String(ictDate.getUTCHours()).padStart(2, '0');
-    const mins  = String(ictDate.getUTCMinutes()).padStart(2, '0');
+.welcome-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: var(--white);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  margin-bottom: var(--space-4);
+  backdrop-filter: blur(8px);
+}
 
-    if (format === 'long')     return `${day} ${this.THAI_MONTHS[month]} ${year}`;
-    if (format === 'short')    return `${day} ${this.THAI_MONTHS_SHORT[month]} ${year}`;
-    if (format === 'datetime') return `${day} ${this.THAI_MONTHS[month]} ${year} เวลา ${hours}:${mins} น.`;
-    if (format === 'time')     return `${hours}:${mins} น.`;
-    if (format === 'numeric')  return `${String(day).padStart(2,'0')}/${String(month+1).padStart(2,'0')}/${year}`;
+.welcome-title {
+  font-size: var(--text-3xl);
+  font-weight: var(--fw-bold);
+  color: var(--white);
+  margin-bottom: var(--space-2);
+  line-height: 1.3;
+}
 
-    return `${day} ${this.THAI_MONTHS[month]} ${year}`;
-  },
+.welcome-subtitle {
+  font-size: var(--text-base);
+  color: rgba(255,255,255,0.75);
+  margin-bottom: var(--space-6);
+  max-width: 500px;
+}
 
-  /** วันนี้ในรูปแบบไทย */
-  today(format = 'long') { return this.thaiDate(new Date(), format); },
+.welcome-stats {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
 
-  /** แปลงค่า input[type=date] (YYYY-MM-DD) หรือ ISO string เป็น Thai date */
-  dateInputToThai(dateStr, format = 'long') {
-    if (!dateStr) return '-';
-    const str = String(dateStr);
-    
-    // If it is a date range string (contains '~')
-    if (str.includes('~')) {
-      const [start, end] = str.split('~');
-      return this.formatDateRange(start, end, format);
-    }
-    
-    // If it is an ISO/DateTime string (contains 'T' or 'Z')
-    if (str.includes('T') || str.includes('Z')) {
-      const d = new Date(str);
-      if (!isNaN(d.getTime())) {
-        const ictTime = d.getTime() + 7 * 60 * 60 * 1000;
-        const ictDate = new Date(ictTime);
-        const day = ictDate.getUTCDate();
-        const month = ictDate.getUTCMonth();
-        const year = ictDate.getUTCFullYear() + 543;
-        if (format === 'short')   return `${day} ${this.THAI_MONTHS_SHORT[month]} ${year}`;
-        if (format === 'numeric') return `${String(day).padStart(2,'0')}/${String(month+1).padStart(2,'0')}/${year}`;
-        return `${day} ${this.THAI_MONTHS[month]} ${year}`;
-      }
-    }
+.welcome-stat-item {
+  text-align: center;
+}
+.welcome-stat-value {
+  font-size: var(--text-3xl);
+  font-weight: var(--fw-bold);
+  color: var(--white);
+  line-height: 1;
+}
+.welcome-stat-label {
+  font-size: var(--text-xs);
+  color: rgba(255,255,255,0.65);
+  margin-top: 4px;
+}
 
-    // Otherwise treat as plain date input (YYYY-MM-DD)
-    const cleanDateStr = str.split(' ')[0];
-    const parts = cleanDateStr.split('-');
-    if (parts.length < 3) {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) {
-        const ictTime = d.getTime() + 7 * 60 * 60 * 1000;
-        const ictDate = new Date(ictTime);
-        const day = ictDate.getUTCDate();
-        const month = ictDate.getUTCMonth();
-        const year = ictDate.getUTCFullYear() + 543;
-        if (format === 'short')   return `${day} ${this.THAI_MONTHS_SHORT[month]} ${year}`;
-        if (format === 'numeric') return `${String(day).padStart(2,'0')}/${String(month+1).padStart(2,'0')}/${year}`;
-        return `${day} ${this.THAI_MONTHS[month]} ${year}`;
-      }
-      return String(dateStr);
-    }
-    const [y, m, d] = parts.map(Number);
-    const thaiYear = y + 543;
-    if (format === 'short')   return `${d} ${this.THAI_MONTHS_SHORT[m-1]} ${thaiYear}`;
-    if (format === 'numeric') return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${thaiYear}`;
-    return `${d} ${this.THAI_MONTHS[m-1]} ${thaiYear}`;
-  },
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
 
-  /** แปลงช่วงวันที่ (YYYY-MM-DD) เป็นรูปแบบไทย */
-  formatDateRange(startStr, endStr, format = 'long') {
-    if (!startStr) return '-';
-    if (!endStr || startStr === endStr) {
-      return this.dateInputToThai(startStr, format);
-    }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
 
-    const startClean = String(startStr).includes('T') ? String(startStr).split('T')[0] : String(startStr);
-    const endClean = String(endStr).includes('T') ? String(endStr).split('T')[0] : String(endStr);
+.recent-section {
+  margin-top: var(--space-6);
+}
 
-    const startParts = startClean.split('-');
-    const endParts = endClean.split('-');
+/* ── Create Training ──────────────────────────────────────── */
+.training-form-card {
+  max-width: 900px;
+}
 
-    if (startParts.length < 3 || endParts.length < 3) {
-      return `${this.dateInputToThai(startStr, format)} - ${this.dateInputToThai(endStr, format)}`;
-    }
+.session-list {
+  margin-bottom: var(--space-4);
+}
 
-    const [sY, sM, sD] = startParts.map(Number);
-    const [eY, eM, eD] = endParts.map(Number);
+.add-session-btn {
+  width: 100%;
+  border: 2px dashed var(--teal-300);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  color: var(--teal-600);
+  background: var(--teal-50);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.add-session-btn:hover {
+  background: var(--teal-100);
+  border-color: var(--teal-500);
+}
 
-    const startYearThai = sY + 543;
-    const endYearThai = eY + 543;
+.result-panel {
+  background: linear-gradient(135deg, var(--navy-50), var(--teal-50));
+  border: 1px solid var(--navy-100);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-top: var(--space-6);
+}
 
-    if (startYearThai === endYearThai) {
-      if (sM === eM) {
-        // Same month and year: "30-31 มิถุนายน 2569"
-        const monthName = format === 'short' ? this.THAI_MONTHS_SHORT[sM-1] : this.THAI_MONTHS[sM-1];
-        return `${sD}-${eD} ${monthName} ${startYearThai}`;
-      } else {
-        // Different months, same year: "30 มิถุนายน - 1 กรกฎาคม 2569"
-        const startMonthName = format === 'short' ? this.THAI_MONTHS_SHORT[sM-1] : this.THAI_MONTHS[sM-1];
-        const endMonthName = format === 'short' ? this.THAI_MONTHS_SHORT[eM-1] : this.THAI_MONTHS[eM-1];
-        return `${sD} ${startMonthName} - ${eD} ${endMonthName} ${startYearThai}`;
-      }
-    } else {
-      // Different years: "30 มิถุนายน 2569 - 1 มกราคม 2570"
-      return `${this.dateInputToThai(startStr, format)} - ${this.dateInputToThai(endStr, format)}`;
-    }
-  },
+.result-panel-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  color: var(--navy-800);
+  margin-bottom: var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 
-  /** แปลงเวลา (hh:mm หรือ ISO string) เป็น hh.mm */
-  formatTime(timeStr) {
-    if (!timeStr) return '-';
-    if (String(timeStr).includes('T')) {
-      const d = new Date(timeStr);
-      if (!isNaN(d.getTime())) {
-        // If it represents a time value in 1899 (Google Sheets default epoch for times)
-        // Thailand historical timezone offset was +6:42:04 (24124000 ms)
-        const isHistorical = String(timeStr).includes('1899');
-        const offset = isHistorical ? 24124000 : 7 * 60 * 60 * 1000;
-        const ictTime = d.getTime() + offset;
-        const ictDate = new Date(ictTime);
-        const hours = String(ictDate.getUTCHours()).padStart(2, '0');
-        const mins  = String(ictDate.getUTCMinutes()).padStart(2, '0');
-        return `${hours}.${mins}`;
-      }
-    }
-    const parts = String(timeStr).split(':');
-    if (parts.length >= 2) {
-      const hours = parts[0].padStart(2, '0');
-      const mins  = parts[1].padStart(2, '0');
-      return `${hours}.${mins}`;
-    }
-    return String(timeStr);
-  },
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
 
-  /** แปลง Thai date string เป็น ISO date string สำหรับ input[type=date] */
-  thaiYearToInput(thaiYear) {
-    return String(Number(thaiYear) - 543);
-  },
+/* ── Registration Form ────────────────────────────────────── */
+.register-page-wrapper {
+  max-width: 680px;
+  margin: 0 auto;
+}
 
-  // ── ID Generators ────────────────────────────────────────────
-  /**
-   * สร้าง unique ID
-   * @param {string} prefix - เช่น 'TRN', 'SES', 'REG'
-   */
-  generateId(prefix = 'ID') {
-    const ts   = Date.now().toString(36).toUpperCase();
-    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-    return `${prefix}-${ts}-${rand}`;
-  },
+.training-info-banner {
+  background: linear-gradient(135deg, var(--navy-800), var(--navy-700));
+  color: var(--white);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  position: relative;
+  overflow: hidden;
+}
 
-  /** สร้าง management code 6 ตัวอักษรตัวเลข */
-  generateCode(length = 6) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ตัดตัวอักษรที่สับสน
-    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  },
+.training-info-banner::after {
+  content: '🏥';
+  position: absolute;
+  right: var(--space-6);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 4rem;
+  opacity: 0.15;
+}
 
-  generateQR(canvas, text, size = 220) {
-    if (typeof QRious === 'undefined') {
-      console.warn('[Utils] QRious library not loaded');
-      return;
-    }
-    new QRious({
-      element: canvas,
-      value: text,
-      size,
-      foreground: '#0D2B5E',
-      background: '#FFFFFF',
-      level: 'H' // High error correction
-    });
-  },
+.training-info-title {
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  color: var(--white);
+  margin-bottom: var(--space-3);
+}
 
-  /**
-   * ดาวน์โหลดภาพ QR Code เปล่าๆ
-   */
-  downloadRawQR(url, filename = 'qr-code') {
-    if (typeof QRious === 'undefined') {
-      console.warn('[Utils] QRious library not loaded');
-      return;
-    }
-    const tempCanvas = document.createElement('canvas');
-    new QRious({
-      element: tempCanvas,
-      value: url,
-      size: 400,
-      foreground: '#0D2B5E',
-      background: '#FFFFFF',
-      level: 'H'
-    });
-    const dataUrl = tempCanvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `${filename}.png`;
-    a.click();
-  },
+.training-info-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
 
-  /**
-   * ดาวน์โหลดการ์ดลงทะเบียนแบบสวยงาม
-   */
-  downloadQRCard(title, url, filename = 'registration-card') {
-    if (typeof QRious === 'undefined') {
-      console.warn('[Utils] QRious library not loaded');
-      return;
-    }
-    const width = 800;
-    const height = 1100;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
+.training-meta-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: rgba(255,255,255,0.80);
+}
 
-    // 1. Background & Border
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
+.register-card {
+  background: var(--white);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--gray-200);
+}
 
-    // Elegant navy border frame
-    ctx.lineWidth = 15;
-    ctx.strokeStyle = '#0D2B5E';
-    ctx.strokeRect(15, 15, width - 30, height - 30);
+.manual-entry-toggle {
+  background: var(--gray-50);
+  border: 1.5px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-top: var(--space-2);
+}
+.manual-entry-toggle:hover {
+  background: var(--navy-50);
+  border-color: var(--navy-300);
+  color: var(--navy-700);
+}
 
-    // Inner gold/teal accent line
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#00897b';
-    ctx.strokeRect(27, 27, width - 54, height - 54);
+/* ── Verification Page ────────────────────────────────────── */
+.verify-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
 
-    // Header Background
-    ctx.fillStyle = '#eff6ff';
-    ctx.fillRect(30, 30, width - 60, 200);
-    ctx.fillStyle = '#0D2B5E';
-    ctx.fillRect(30, 228, width - 60, 4);
+.participants-count {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+}
 
-    // 2. Text styling
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+.dept-separator {
+  background: var(--navy-50);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  color: var(--navy-700);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
-    // Hospital Header Text
-    ctx.fillStyle = '#00897b';
-    ctx.font = 'bold 20px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('ภารกิจด้านการพยาบาล โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน', width / 2, 80);
+/* ── Management Hub ───────────────────────────────────────── */
+.management-gate {
+  max-width: 480px;
+  margin: 80px auto;
+  text-align: center;
+}
 
-    // Subtitle
-    ctx.fillStyle = '#64748b';
-    ctx.font = '500 18px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('NSO ACADEMY TRAINING REGISTRATION', width / 2, 115);
+.management-gate-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-4);
+}
 
-    // Course Title text-wrapping
-    ctx.fillStyle = '#0D2B5E';
-    ctx.font = 'bold 32px "Prompt", "Sarabun", sans-serif';
-    
-    // Wrap title
-    const maxTextWidth = width - 120;
-    const cleanTitle = title.replace(/\s+/g, ' ');
-    let lines = [];
-    if (ctx.measureText(cleanTitle).width <= maxTextWidth) {
-      lines.push(cleanTitle);
-    } else {
-      let currentIdx = 0;
-      while (currentIdx < cleanTitle.length) {
-        let chunkLength = 28;
-        let chunk = cleanTitle.substring(currentIdx, currentIdx + chunkLength);
-        lines.push(chunk);
-        currentIdx += chunkLength;
-      }
-    }
+.management-gate-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--navy-800);
+  margin-bottom: var(--space-2);
+}
 
-    // Draw wrapped lines (maximum 2 lines to fit)
-    const titleY = 165;
-    if (lines.length === 1) {
-      ctx.fillText(lines[0], width / 2, titleY);
-    } else {
-      ctx.fillText(lines[0], width / 2, titleY - 20);
-      ctx.fillText(lines[1] + (lines[2] ? '...' : ''), width / 2, titleY + 20);
-    }
+.management-gate-desc {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin-bottom: var(--space-8);
+}
 
-    // 3. QR Code generation & drawing
-    const qrSize = 400;
-    const qrCanvas = document.createElement('canvas');
-    new QRious({
-      element: qrCanvas,
-      value: url,
-      size: qrSize,
-      foreground: '#000000', // แก้ไข 1: เปลี่ยนจาก #0D2B5E (สีกรมท่า) เป็นสีดำสนิทเพื่อ Contrast สูงสุด
-      background: '#FFFFFF',
-      level: 'H'
-    });
+.code-input-wrapper {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
 
-    const qrX = (width - qrSize) / 2;
-    const qrY = 320;
-    
-    // QR Shadow/Card frame
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
-    ctx.shadowBlur = 30;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 10;
-    
-    ctx.fillStyle = '#FFFFFF';
-    // แก้ไข 2: เพิ่มขอบขาว Margin (Quiet zone) รอบ QR Code จาก 20 เป็น 30 ให้เซ็นเซอร์กล้องสแกนง่ายขึ้น
-    ctx.fillRect(qrX - 30, qrY - 30, qrSize + 60, qrSize + 60); 
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(qrX - 30, qrY - 30, qrSize + 60, qrSize + 60);
-    
-    // Reset shadow
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    
-    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+.code-input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  text-align: center;
+  letter-spacing: 0.2em;
+  padding: var(--space-4);
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  color: var(--navy-800);
+}
+.code-input:focus {
+  border-color: var(--teal-500);
+  box-shadow: 0 0 0 3px rgba(0,137,123,0.15);
+  outline: none;
+}
 
-    // 4. CTA Footer Section
-    ctx.fillStyle = '#0D2B5E';
-    ctx.font = 'bold 36px "Prompt", "Sarabun", sans-serif';
-    ctx.fillText('สแกนเพื่อลงทะเบียน', width / 2, 820);
+.management-nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = '500 20px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('Scan this QR code to join the training session', width / 2, 875);
+.management-nav-card {
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+.management-nav-card:hover {
+  border-color: var(--teal-400);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
 
-    // Decorative footer bar
-    ctx.fillStyle = '#00897b';
-    ctx.fillRect(100, 930, width - 200, 3);
+.management-nav-card .nav-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-3);
+}
 
-    // System name footer
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '14px "Sarabun", "Prompt", sans-serif';
-    ctx.fillText('ระบบบริหารจัดการการศึกษาและฝึกอบรมกลุ่มภารกิจด้านการพยาบาล', width / 2, 970);
-    ctx.fillText('NSO ACADEMY © 2026', width / 2, 995);
+.management-nav-card .nav-card-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  color: var(--navy-800);
+  margin-bottom: var(--space-1);
+}
 
-    // Trigger download
-    const cardDataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = cardDataUrl;
-    a.download = `${filename}.png`;
-    a.click();
-  },
+.management-nav-card .nav-card-desc {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
 
-  /** สร้าง Registration URL */
-  buildRegisterUrl(trainingId) {
-    const base = window.location.href.split('#')[0];
-    return `${base}#/register?id=${trainingId}`;
-  },
+/* ── Test Builder ─────────────────────────────────────────── */
+.test-builder-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
 
-  /** สร้าง Pre-test URL */
-  buildPretestUrl(trainingId) {
-    const base = window.location.href.split('#')[0];
-    return `${base}#/take-test?id=${trainingId}&type=PRE`;
-  },
+.questions-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
 
-  /** สร้าง Post-test URL */
-  buildPosttestUrl(trainingId) {
-    const base = window.location.href.split('#')[0];
-    return `${base}#/take-test?id=${trainingId}&type=POST`;
-  },
+.correct-answer-select {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
 
-  // ── Excel Export (SheetJS) ───────────────────────────────────
-  /**
-   * Export ข้อมูลเป็นไฟล์ Excel
-   * @param {Array<object>} data - array of objects
-   * @param {string} filename - ชื่อไฟล์ (ไม่ต้องใส่ .xlsx)
-   * @param {object} [options] - { sheetName, headers }
-   */
-  exportExcel(data, filename, options = {}) {
-    if (typeof XLSX === 'undefined') {
-      UI.error('ไม่สามารถโหลด SheetJS library ได้');
-      return;
-    }
+.correct-option-btn {
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semi);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.correct-option-btn:hover { border-color: var(--teal-400); color: var(--teal-600); }
+.correct-option-btn.selected {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--white);
+}
 
-    const sheetName = options.sheetName || 'ข้อมูล';
-    const wb = XLSX.utils.book_new();
+.test-options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
 
-    // ถ้ามี custom headers ให้ใช้
-    let wsData = data;
-    if (options.headers) {
-      const rows = data.map(row => options.headers.map(h => row[h.key] ?? ''));
-      wsData = [options.headers.map(h => h.label), ...rows];
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    } else {
-      const ws = XLSX.utils.json_to_sheet(wsData);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    }
+/* ── Satisfaction Builder ─────────────────────────────────── */
+.sat-question-card {
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
 
-    XLSX.writeFile(wb, `${filename}.xlsx`);
-  },
+.sat-question-header {
+  background: var(--teal-50);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 
-  // ── PDF via Print ─────────────────────────────────────────────
-  /**
-   * Print to PDF: inject HTML into print area and trigger print
-   * ใช้ @media print CSS — รองรับภาษาไทยโดยอัตโนมัติ
-   * @param {string} html - HTML content
-   * @param {string} [title] - document title
-   */
-  printPDF(html, title = 'เอกสาร') {
-    const printArea = document.getElementById('print-area');
-    if (!printArea) return;
+.sat-type-badge {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semi);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+.sat-type-badge.rating { background: var(--teal-100); color: var(--teal-800); }
+.sat-type-badge.text   { background: var(--info-light); color: #1e40af; }
 
-    const prevTitle = document.title;
-    document.title = title;
-    printArea.innerHTML = html;
-    document.body.classList.add('printing-mode');
-    printArea.classList.remove('hidden');
+.sat-question-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
 
-    window.print();
+.rating-stars-preview {
+  display: flex;
+  gap: var(--space-2);
+}
+.star-btn {
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--gray-300);
+  transition: color var(--transition-fast);
+  border: none;
+  background: none;
+  padding: 0;
+}
+.star-btn:hover, .star-btn.active { color: var(--warning); }
 
-    // Restore after print
-    setTimeout(() => {
-      document.title = prevTitle;
-      printArea.innerHTML = '';
-      printArea.classList.add('hidden');
-      document.body.classList.remove('printing-mode');
-    }, 1000);
-  },
+/* ── Analytics Dashboard ──────────────────────────────────── */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
 
- /**
-   * สร้าง HTML สำหรับใบเซ็นชื่อ (เอกสารราชการสไตล์ไทย)
-   * รองรับการพิมพ์แนวนอน (Landscape) และแสดงหัวกระดาษซ้ำทุกหน้า
-   */
-  buildAttendanceHTML(training, session, registrations) {
-    const sessionDateStr = session.sessionDate
-      ? Utils.thaiDate(session.sessionDate, 'long')
-      : Utils.dateInputToThai(session.sessionDateRaw, 'long');
+.analytics-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
 
-    // จัดเรียงตามหน่วยงาน
-    const sorted = [...registrations].sort((a, b) =>
-      (a.department || '').localeCompare(b.department || '', 'th')
-    );
+.analytics-chart-card {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  padding: var(--space-5);
+}
 
-    let rows = '';
-    let no = 1;
-    let lastDept = null;
-    sorted.forEach(reg => {
-      if (reg.department !== lastDept) {
-        rows += `
-          <tr>
-            <td colspan="5" style="background:#f3f4f6; font-weight:bold; font-size:12pt; padding:8px 12px; border:1px solid #333;">
-              หน่วยงาน: ${reg.department || '-'}
-            </td>
-          </tr>`;
-        lastDept = reg.department;
-      }
-      rows += `
-        <tr>
-          <td style="text-align:center; padding:8px; border:1px solid #333;">${no++}</td>
-          <td style="padding:8px; border:1px solid #333;">${reg.fullName || '-'}</td>
-          <td style="padding:8px; border:1px solid #333;">${reg.position || '-'}</td>
-          <td style="padding:8px; border:1px solid #333;">${reg.department || '-'}</td>
-          <td style="text-align:center; padding:8px; border:1px solid #333;"></td>
-        </tr>`;
-    });
+.chart-title {
+  font-family: var(--font-heading);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semi);
+  color: var(--navy-800);
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 
-    return `
-      <div style="font-family: 'Sarabun', sans-serif; color: #000; background: #fff;">
-        <style>
-          @media print {
-            @page { size: A4 landscape; margin: 15mm; }
-            body { -webkit-print-color-adjust: exact; padding: 0 !important; margin: 0 !important; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-            thead { display: table-header-group; }
-            tfoot { display: table-footer-group; }
-          }
-          .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11pt; }
-          .print-table th, .print-table td { border: 1px solid #000; }
-          .print-header-content { text-align: center; margin-bottom: 15px; }
-          .print-header-content h2 { font-size: 16pt; font-weight: bold; margin: 0 0 5px 0; }
-          .print-header-content h3 { font-size: 14pt; font-weight: normal; margin: 0 0 5px 0; }
-        </style>
+.approval-table-wrapper {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+}
 
-        <table class="print-table">
-          <thead>
-            <tr>
-              <td colspan="5" style="border: none; padding-bottom: 15px;">
-                <div class="print-header-content">
-                  <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
-                  <h2>เรื่อง: ${training.title || 'หัวข้อการอบรม'}</h2>
-                  <h3>รอบวันที่ ${sessionDateStr} เวลา ${Utils.formatTime(session.startTime)} – ${Utils.formatTime(session.endTime)} น. ณ ${training.location || '-'}</h3>
-                </div>
-              </td>
-            </tr>
-            <tr style="background:#e5e7eb; font-weight:bold; text-align:center;">
-              <th style="width: 5%; padding: 10px; border: 1px solid #333;">ลำดับ</th>
-              <th style="width: 25%; padding: 10px; border: 1px solid #333;">ชื่อ - นามสกุล</th>
-              <th style="width: 20%; padding: 10px; border: 1px solid #333;">ตำแหน่ง</th>
-              <th style="width: 20%; padding: 10px; border: 1px solid #333;">หน่วยงาน/สังกัด</th>
-              <th style="width: 30%; padding: 10px; border: 1px solid #333;">ลายมือชื่อ</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-        
-        <div style="margin-top: 15px; text-align: right; font-size: 11pt;">
-          <strong>รวมจำนวนผู้เข้าอบรมทั้งหมด: ${registrations.length} ท่าน</strong>
-        </div>
-      </div>
-    `;
-  },
+/* Score Pill */
+.score-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  min-width: 52px;
+}
+.score-pill.high { background: var(--success-light); color: #065f46; }
+.score-pill.mid  { background: var(--warning-light); color: #92400e; }
+.score-pill.low  { background: var(--danger-light); color: #991b1b; }
+.score-pill.none { background: var(--gray-100); color: var(--gray-500); }
 
-  // ── Debounce ─────────────────────────────────────────────────
-  /**
-   * Debounce function — ป้องกันการเรียกฟังก์ชันบ่อยเกินไป
-   * @param {Function} fn
-   * @param {number} ms - delay in milliseconds
-   */
-  debounce(fn, ms = 300) {
-    let timer;
-    return function(...args) {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(this, args), ms);
-    };
-  },
+/* Improvement Indicator */
+.score-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semi);
+}
+.score-diff.positive { color: var(--success); }
+.score-diff.negative { color: var(--danger); }
+.score-diff.neutral  { color: var(--gray-400); }
 
-  // ── String Helpers ───────────────────────────────────────────
-  /** ค้นหาข้อความแบบ fuzzy (กรณีไม่ตรงตามตัวพิมพ์) */
-  matchesSearch(text, query) {
-    if (!query) return true;
-    return String(text).toLowerCase().includes(String(query).toLowerCase());
-  },
-
-  /** ตัดข้อความยาว */
-  truncate(text, maxLength = 50) {
-    if (!text) return '';
-    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
-  },
-
-  // ── Clipboard ─────────────────────────────────────────────────
-  async copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      UI.success('คัดลอกแล้ว!', 'คัดลอกสำเร็จ');
-    } catch {
-      // Fallback
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      UI.success('คัดลอกแล้ว!', 'คัดลอกสำเร็จ');
-    }
-  },
-
-  // ── Score Color ───────────────────────────────────────────────
-  scorePillClass(score, max = 100) {
-    const pct = max > 0 ? (score / max) * 100 : 0;
-    if (pct >= 70) return 'high';
-    if (pct >= 50) return 'mid';
-    return 'low';
-  },
-
-  // ── Local Storage Helpers ─────────────────────────────────────
-  storage: {
-    get(key, fallback = null) {
-      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
-      catch { return fallback; }
-    },
-    set(key, value) {
-      try { localStorage.setItem(key, JSON.stringify(value)); }
-      catch (e) { console.warn('[Storage] Failed to write:', e); }
-    },
-    remove(key) { localStorage.removeItem(key); }
+/* ── Print Styles ─────────────────────────────────────────── */
+@media print {
+  /* ซ่อน UI ทั่วไปขณะพิมพ์ */
+  .sidebar,
+  .bottom-nav,
+  .page-header,
+  .btn,
+  .tab-container,
+  .form-group,
+  .input-group,
+  .card-header .header-actions,
+  #menuToggleBtn,
+  #sidebarOverlay,
+  .no-print {
+    display: none !important;
   }
-};
+
+  /* ใบเซ็นชื่อ — Narrow Margins, Sarabun ทั้งเอกสาร */
+  @page {
+    size: A4 landscape;
+    margin: 10mm 8mm;   /* Narrow: บน/ล่าง 10 mm, ซ้าย/ขวา 8 mm */
+  }
+
+  body,
+  .att-table,
+  .att-table th,
+  .att-table td {
+    font-family: 'Sarabun', sans-serif !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ตาราง: ขึ้นหน้าใหม่อัตโนมัติ, หัวตารางซ้ำทุกหน้า */
+  .att-table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: auto;
+    font-size: 10pt;
+  }
+
+  .att-table thead {
+    display: table-header-group; /* หัวตารางพิมพ์ซ้ำทุกหน้า */
+  }
+
+  .att-table tfoot {
+    display: table-footer-group;
+  }
+
+  .att-table tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .att-table th,
+  .att-table td {
+    border: 1pt solid #000;
+    padding: 4pt 5pt;
+    font-size: 10pt;
+    line-height: 1.3;
+  }
+
+  .att-table th {
+    background-color: #d1d5db !important;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  /* แถวหัวหน่วยงาน */
+  .att-table td[colspan] {
+    font-weight: 700;
+    font-size: 9.5pt;
+    background-color: #ececec !important;
+    padding: 3pt 6pt;
+  }
+
+  /* ช่องลายมือชื่อ */
+  .att-signature-cell {
+    height: 24pt;
+    min-width: 40pt;
+  }
+
+  /* Legacy .print-doc (backward compat) */
+  .print-doc {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Sarabun', sans-serif;
+    font-size: 10.5pt;
+    color: #000;
+  }
+
+  .print-doc-header { text-align: center; margin-bottom: 12pt; }
+  .print-doc-title   { font-size: 14pt; font-weight: 700; margin-bottom: 4pt; }
+  .print-doc-subtitle { font-size: 11pt; margin-bottom: 3pt; }
+
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10pt;
+    font-size: 10pt;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1pt solid #000;
+    padding: 5pt;
+    font-size: 10pt;
+    text-align: left;
+  }
+
+  .print-table th {
+    background-color: #d1d5db !important;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .print-table td.text-center { text-align: center; }
+  .print-table .signature-col { width: 80pt; }
+}
+
+/* ── Responsive Adjustments ───────────────────────────────── */
+@media (max-width: 1200px) {
+  .stats-grid       { grid-template-columns: repeat(2, 1fr); }
+  .analytics-grid   { grid-template-columns: repeat(2, 1fr); }
+  .features-grid    { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .analytics-chart-grid  { grid-template-columns: 1fr; }
+  .verify-selectors      { grid-template-columns: 1fr; }
+  .result-grid           { grid-template-columns: 1fr; }
+  .management-nav-grid   { grid-template-columns: 1fr; }
+  .test-options-grid     { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .stats-grid      { grid-template-columns: 1fr 1fr; }
+  .analytics-grid  { grid-template-columns: 1fr 1fr; }
+  .features-grid   { grid-template-columns: 1fr; }
+  .welcome-title   { font-size: var(--text-2xl); }
+  .welcome-stats   { gap: var(--space-5); }
+  .register-card   { padding: var(--space-5); }
+  .dashboard-welcome { padding: var(--space-6); }
+  .code-input-wrapper { flex-direction: column; }
+  .training-info-banner::after { display: none; }
+}
+
+@media (max-width: 400px) {
+  .stats-grid     { grid-template-columns: 1fr; }
+  .analytics-grid { grid-template-columns: 1fr; }
+}
