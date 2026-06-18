@@ -75,6 +75,32 @@ const ManagePage = {
         const confirmed = await UI.confirm('ต้องการออกจากระบบแอดมินหรือไม่?', 'ออกจากระบบ');
         if (!confirmed) return;
         UI.showLoadingOverlay('กำลังออกจากระบบ...');
+        // Clear admin flag and any auth tokens
+        Utils.storage.remove('admin_logged_in');
+        Utils.storage.remove('token');
+        // Optionally clear all storage
+        // Utils.storage.clear();
+        UI.success('ออกจากระบบแอดมินแล้ว');
+        UI.hideLoadingOverlay();
+        // Redirect to login page to ensure full logout
+        window.location.href = '/login';
+      } else {
+        UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
+        UI.promptAdminLogin((password) => password === '11450')
+          .then((success) => {
+            UI.hideLoadingOverlay();
+            if (success) {
+              Utils.storage.set('admin_logged_in', true);
+              UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
+              this._renderGate(container);
+            }
+          });
+      }
+    });
+      if (isAdmin) {
+        const confirmed = await UI.confirm('ต้องการออกจากระบบแอดมินหรือไม่?', 'ออกจากระบบ');
+        if (!confirmed) return;
+        UI.showLoadingOverlay('กำลังออกจากระบบ...');
         Utils.storage.remove('admin_logged_in');
         UI.success('ออกจากระบบแอดมินแล้ว');
         UI.hideLoadingOverlay();
