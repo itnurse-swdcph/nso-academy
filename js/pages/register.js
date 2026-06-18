@@ -137,6 +137,16 @@ const RegisterPage = {
 
       if (!training) throw new Error('ไม่พบข้อมูลการอบรม');
 
+      // ── กรองเฉพาะรอบที่ยังไม่ผ่านไป (หน้าลงทะเบียนเท่านั้น) ──
+      const rawSessions = training.sessions || [];
+      const activeSessions = this._filterActiveSessions(rawSessions);
+
+      // ถ้าทุกรอบหมดเวลาแล้ว ให้แสดง error แทนฟอร์ม
+      if (rawSessions.length > 0 && activeSessions.length === 0) {
+        throw new Error('หัวข้ออบรมนี้ปิดรับสมัครแล้ว (ทุกรอบผ่านไปแล้ว)');
+      }
+
+      training.sessions = activeSessions;
       this._training = training;
       this._renderBanner(banner, training);
       this._populateSessions(training.sessions || []);
@@ -151,6 +161,24 @@ const RegisterPage = {
   },
 
   _renderTrainingSelector(banner, trainings, container) {
+    // ── กรองหัวข้อที่มีรอบเปิดรับสมัครอย่างน้อย 1 รอบ (สำหรับหน้าลงทะเบียน) ──
+    const activeTrainings = this._filterActiveTrainings(trainings);
+
+    if (!activeTrainings.length) {
+      banner.innerHTML = `
+        <div class="training-info-banner" style="background: linear-gradient(135deg, var(--teal-700), var(--teal-800));">
+          <div style="max-width:400px;">
+            <div class="training-info-title">เลือกหัวข้ออบรม</div>
+            <div class="alert alert-warning" style="margin-top: var(--space-4);">
+              <span class="alert-icon"><i class="fa-solid fa-calendar-xmark"></i></span>
+              <div class="alert-content">ไม่มีหัวข้ออบรมที่เปิดรับสมัครในขณะนี้</div>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     banner.innerHTML = `
       <div class="training-info-banner" style="background: linear-gradient(135deg, var(--teal-700), var(--teal-800));">
         <div style="max-width:400px;">
@@ -158,7 +186,7 @@ const RegisterPage = {
           <div class="form-group" style="margin-top: var(--space-4);">
             <select id="trainingMainSelect" class="form-control">
               <option value="">-- กรุณาเลือกหัวข้ออบรม --</option>
-              ${trainings.map(t => `<option value="${t.trainingId}">${t.title}</option>`).join('')}
+              ${activeTrainings.map(t => `<option value="${t.trainingId}">${t.title}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -181,6 +209,7 @@ const RegisterPage = {
         ]);
 
         if (trainingDetails) {
+          // _populateSessions จะกรองเฉพาะรอบที่ยังไม่ผ่านไปให้อัตโนมัติ
           trainingDetails.sessions = sessions || [];
           this._training = trainingDetails;
           this._renderBanner(banner, trainingDetails);
@@ -209,18 +238,71 @@ const RegisterPage = {
     `;
   },
 
+  /**
+   * คืนค่าเฉพาะรอบที่ "วันจัดอบรม >= วันนี้" (ตัดเวลาออก เปรียบเทียบแค่วันที่)
+   * ใช้เฉพาะหน้าลงทะเบียน (RegisterPage) — หน้า Manage/Dashboard ไม่ผ่านฟังก์ชันนี้
+   * @param {Array} sessions - รายการรอบการอบรมทั้งหมดจาก API
+   * @returns {Array} รายการรอบที่ยังไม่ผ่านไปหรือเป็นวันนี้
+   */
+  _filterActiveSessions(sessions) {
+    if (!Array.isArray(sessions)) return [];
+    // ตัด time ออก → เหลือแค่ "YYYY-MM-DD" เพื่อเปรียบเทียบวันที่ล้วนๆ
+    const todayStr = new Date().toISOString().slice(0, 10); // "2026-06-19"
+    return sessions.filter(s => {
+      const sessionDateStr = (s.sessionDate || s.date || '').slice(0, 10);
+      if (!sessionDateStr) return true; // ถ้าไม่มีวันที่ ให้แสดงไว้ก่อน
+      return sessionDateStr >= todayStr;
+    });
+  },
+
+  /**
+   * คืนค่าเฉพาะหัวข้ออบรมที่มีอย่างน้อย 1 รอบที่ยังไม่หมดอายุ
+   * ใช้เฉพาะหน้าลงทะเบียน — หน้า Manage/Dashboard ไม่ผ่านฟังก์ชันนี้
+   * @param {Array} trainings - รายการหัวข้ออบรมทั้งหมดจาก API (ต้องมี .sessions หรือ .sessionCount)
+   * @returns {Array} รายการหัวข้อที่ยังมีรอบเปิดรับสมัคร
+   */
+  _filterActiveTrainings(trainings) {
+    if (!Array.isArray(trainings)) return [];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return trainings.filter(t => {
+      const sessions = t.sessions || [];
+      // ถ้า API ไม่ได้ส่ง sessions มาด้วย (มีแค่ sessionCount) ให้แสดงไว้ก่อน
+      // (จะถูก filter อีกครั้งตอนโหลด sessions จริง)
+      if (!sessions.length) return true;
+      return sessions.some(s => {
+        const d = (s.sessionDate || s.date || '').slice(0, 10);
+        return !d || d >= todayStr;
+      });
+    });
+  },
+
   _populateSessions(sessions) {
     const sel = document.getElementById('sessionSelect');
     if (!sel) return;
+
+    // ── กรองเฉพาะรอบที่ยังไม่ผ่านไป (Frontend filter สำหรับหน้าลงทะเบียน) ──
+    const activeSessions = this._filterActiveSessions(sessions);
+
     sel.innerHTML = '<option value="">-- กรุณาเลือกรอบการอบรม --</option>';
-    sessions.forEach(s => {
+
+    if (!activeSessions.length) {
+      // ไม่มีรอบเปิดรับสมัคร — แสดง option แจ้งเตือน
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.disabled = true;
+      opt.textContent = '— ปิดรับสมัครทุกรอบแล้ว —';
+      sel.appendChild(opt);
+      return;
+    }
+
+    activeSessions.forEach(s => {
       const opt = document.createElement('option');
       opt.value = s.sessionId;
       opt.textContent = `${Utils.dateInputToThai(s.sessionDate, 'long')} เวลา ${Utils.formatTime(s.startTime)} - ${Utils.formatTime(s.endTime)} น.`;
       sel.appendChild(opt);
     });
-    if (sessions.length === 1) {
-      sel.value = sessions[0].sessionId;
+    if (activeSessions.length === 1) {
+      sel.value = activeSessions[0].sessionId;
     }
   },
 
