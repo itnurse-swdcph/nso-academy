@@ -12,6 +12,9 @@ const TrainingService = {
       const trainings = SheetService.getRecords(CONFIG.SHEETS.TRAININGS);
       const sessions = SheetService.getRecords(CONFIG.SHEETS.SESSIONS);
 
+      // วันนี้ในรูปแบบ "YYYY-MM-DD" สำหรับเปรียบเทียบวันที่ล้วนๆ
+      const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
       return trainings.map(t => {
         const trainSessions = sessions.filter(s => s.trainingId === t.trainingId);
         
@@ -19,9 +22,16 @@ const TrainingService = {
         let nextDate = "";
         if (trainSessions.length > 0) {
           const parseDate = (dStr) => new Date(String(dStr).split('~')[0]);
-          const sorted = trainSessions.sort((a, b) => parseDate(a.sessionDate) - parseDate(b.sessionDate));
+          const sorted = [...trainSessions].sort((a, b) => parseDate(a.sessionDate) - parseDate(b.sessionDate));
           nextDate = sorted[0].sessionDate;
         }
+
+        // ตรวจสอบว่ามีรอบที่ยังไม่ผ่านไป (sessionDate >= วันนี้) อย่างน้อย 1 รอบหรือไม่
+        // ใช้เพื่อแสดงสถานะ "เปิด/ปิด" บน Frontend โดยไม่ต้องกรองข้อมูลออกจากระบบ
+        const hasActiveSessions = trainSessions.some(s => {
+          const dateStr = String(s.sessionDate || "").split('~')[0].trim().slice(0, 10);
+          return dateStr >= todayStr;
+        });
 
         return {
           trainingId: t.trainingId,
@@ -31,7 +41,8 @@ const TrainingService = {
           status: t.status,
           createdAt: t.createdAt,
           sessionCount: trainSessions.length,
-          startDate: nextDate
+          startDate: nextDate,
+          hasActiveSessions: hasActiveSessions  // true = ยังมีรอบเปิดรับสมัคร, false = ปิดรับสมัครทั้งหมด
         };
       });
     }, CONFIG.CACHE_TTL);
