@@ -22,7 +22,7 @@ const HomePage = {
               </div>
               <div class="welcome-stat-item">
                 <div class="welcome-stat-value" id="statActive">—</div>
-                <div class="welcome-stat-label">กำลังเปิดรับสมัคร</div>
+                <div class="welcome-stat-label">มีรอบเปิดรับสมัคร</div>
               </div>
               <div class="welcome-stat-item">
                 <div class="welcome-stat-value" id="statToday">—</div>
@@ -113,7 +113,18 @@ const HomePage = {
       
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
-      const active = trainings.filter(t => t.status === 'ACTIVE');
+
+      // "มีรอบเปิดรับสมัคร" = ใช้ hasActiveSessions จาก API (คำนวณจาก GAS แม่นยำที่สุด)
+      // fallback ลำดับถัดไปถ้า API เก่าไม่ได้ส่งมา
+      const active = trainings.filter(t => {
+        if (typeof t.hasActiveSessions === 'boolean') return t.hasActiveSessions;
+        const sessions = t.sessions || [];
+        if (sessions.length > 0) {
+          return sessions.some(s => (s.sessionDate || s.date || '').slice(0, 10) >= todayStr);
+        }
+        if (t.startDate) return t.startDate.toString().slice(0, 10) >= todayStr;
+        return t.status === 'ACTIVE';
+      });
       const today  = trainings.filter(t => (t.sessions || []).some(s => (s.sessionDate || '').slice(0, 10) === todayStr));
 
       if (statTotal) statTotal.textContent  = trainings.length;
@@ -135,7 +146,7 @@ const HomePage = {
             <div class="stat-icon teal"><i class="fa-solid fa-circle-play"></i></div>
             <div class="stat-info">
               <div class="stat-value">${active.length}</div>
-              <div class="stat-label">กำลังเปิดรับสมัคร</div>
+              <div class="stat-label">มีรอบเปิดรับสมัคร</div>
             </div>
           </div>
           <div class="stat-card">
@@ -172,7 +183,30 @@ const HomePage = {
       const recent = trainings.slice(0, 5);
       recentEl.innerHTML = `
         <div>
-          ${recent.map(t => `
+          ${recent.map(t => {
+            // ตรวจสอบสถานะการเปิดรับสมัคร:
+            // 1. ถ้า API ส่ง hasActiveSessions มา → ใช้ค่านั้นโดยตรง (แม่นยำที่สุด)
+            // 2. Fallback: คำนวณเองจาก startDate (ถ้ายังมี startDate >= วันนี้)
+            // 3. Fallback สุดท้าย: ดูจาก status field
+            let isOpen;
+            if (typeof t.hasActiveSessions === 'boolean') {
+              isOpen = t.hasActiveSessions;
+            } else if (t.startDate) {
+              isOpen = t.startDate.toString().slice(0, 10) >= todayStr;
+            } else {
+              isOpen = t.status === 'ACTIVE';
+            }
+
+            const badgeHtml = isOpen
+              ? `<span class="badge badge-success"><i class="fa-solid fa-lock-open"></i> เปิด</span>`
+              : `<span class="badge badge-gray"><i class="fa-solid fa-lock"></i> ปิด</span>`;
+
+            // ปุ่มลงทะเบียน: ถ้าปิดรับสมัครแล้ว ให้ disable และเปลี่ยน style
+            const registerBtn = isOpen
+              ? `<a href="#/register?id=${t.trainingId}" class="btn btn-outline-teal btn-sm">ลงทะเบียน</a>`
+              : `<span class="btn btn-sm" style="background:var(--gray-100); color:var(--gray-400); border:1px solid var(--gray-200); cursor:not-allowed;" title="ปิดรับสมัครแล้ว">ปิดรับสมัคร</span>`;
+
+            return `
             <div style="display:flex; align-items:center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--gray-100); transition: background var(--transition-fast);"
                  onmouseenter="this.style.background='var(--gray-50)'"
                  onmouseleave="this.style.background=''">
@@ -181,14 +215,14 @@ const HomePage = {
                 <div style="font-weight: var(--fw-semi); color: var(--gray-800); font-size: var(--text-sm); margin-bottom: 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.title}</div>
                 <div style="font-size: var(--text-xs); color: var(--gray-500);">${t.organizer || ''} · ${t.sessionCount || 0} รอบ</div>
               </div>
-              <span class="badge ${t.status === 'ACTIVE' ? 'badge-success' : 'badge-gray'}">${t.status === 'ACTIVE' ? '<i class="fa-solid fa-lock-open text-success"></i> เปิด' : '<i class="fa-solid fa-lock text-muted"></i> ปิด'}</span>
+              ${badgeHtml}
               <div style="display:flex; gap: 6px; align-items:center;">
                 <button class="btn btn-outline-navy btn-sm qr-btn" data-id="${t.trainingId}" data-title="${t.title}" title="สร้าง QR Code สำหรับลงทะเบียน" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-qrcode"></i></button>
                 <button class="btn btn-outline-navy btn-sm edit-btn" data-id="${t.trainingId}" title="แก้ไขข้อมูลการอบรม" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-pen-to-square"></i></button>
-                <a href="#/register?id=${t.trainingId}" class="btn btn-outline-teal btn-sm">ลงทะเบียน</a>
+                ${registerBtn}
               </div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       `;
 
