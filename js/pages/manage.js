@@ -89,15 +89,22 @@ const ManagePage = {
         // โหลดหน้าฟอร์มใหม่เพื่อปรับสถานะ UI เป็นผู้ใช้ปกติ
         this._renderGate(container);
       } else {
-        UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
+        // ── จุดที่ 1: เปิด Modal ฟอร์มทันที ไม่แสดง Spinner ก่อน ──
+        // Loading Overlay จะถูกเรียกใน .then() ต่อเมื่อผู้ใช้กดยืนยันรหัสผ่านในฟอร์มแล้ว
         UI.promptAdminLogin((password) => password === '11450')
           .then((success) => {
-            UI.hideLoadingOverlay();
             if (success) {
-              Utils.storage.set('admin_logged_in', true);
-              UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
-              this._renderGate(container);
+              // ── จุดที่ 2: แสดง Spinner หลังจากกด [เข้าสู่ระบบ] ในฟอร์มแล้วเท่านั้น ──
+              UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
+              // หน่วงเล็กน้อยเพื่อให้ Spinner แสดงก่อน render ใหม่ (ป้องกัน UI กระตุก)
+              setTimeout(() => {
+                Utils.storage.set('admin_logged_in', true);
+                UI.hideLoadingOverlay();
+                UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
+                this._renderGate(container);
+              }, 400);
             }
+            // กรณีกด ยกเลิก หรือรหัสผ่านผิด: ไม่ต้องทำอะไร modal จัดการ error ไว้แล้ว
           });
       }
     });
