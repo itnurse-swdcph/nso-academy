@@ -106,32 +106,31 @@ const HomePage = {
       const trainings = await API.getTrainings();
       this._statsCache = trainings;
 
-      // Update welcome stats if they exist in DOM
-      const statTotal = container.querySelector('#statTotal');
-      const statActive = container.querySelector('#statActive');
-      const statToday = container.querySelector('#statToday');
-      
+      // วันที่ปัจจุบันสำหรับเปรียบเทียบ
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
 
-      // "มีรอบเปิดรับสมัคร" = ใช้ hasActiveSessions จาก API (คำนวณจาก GAS แม่นยำที่สุด)
-      // fallback ลำดับถัดไปถ้า API เก่าไม่ได้ส่งมา
+      // คำนวณหัวข้อที่เปิดรับสมัคร (ใช้ isExpired จาก GAS ถ้ามี)
       const active = trainings.filter(t => {
+        if (typeof t.isExpired === 'boolean') return !t.isExpired;
         if (typeof t.hasActiveSessions === 'boolean') return t.hasActiveSessions;
         const sessions = t.sessions || [];
         if (sessions.length > 0) {
           return sessions.some(s => (s.sessionDate || s.date || '').slice(0, 10) >= todayStr);
         }
-        if (t.startDate) return t.startDate.toString().slice(0, 10) >= todayStr;
         return t.status === 'ACTIVE';
       });
-      const today  = trainings.filter(t => (t.sessions || []).some(s => (s.sessionDate || '').slice(0, 10) === todayStr));
 
-      if (statTotal) statTotal.textContent  = trainings.length;
+      const today = trainings.filter(t => (t.sessions || []).some(s => (s.sessionDate || '').slice(0, 10) === todayStr));
+
+      // Update UI Stats
+      const statTotal = container.querySelector('#statTotal');
+      const statActive = container.querySelector('#statActive');
+      const statToday = container.querySelector('#statToday');
+      if (statTotal) statTotal.textContent = trainings.length;
       if (statActive) statActive.textContent = active.length;
-      if (statToday) statToday.textContent  = today.length;
+      if (statToday) statToday.textContent = today.length;
 
-      // Update stat cards if statsGrid exists
       const statsGrid = container.querySelector('#statsGrid');
       if (statsGrid) {
         statsGrid.innerHTML = `
@@ -166,7 +165,6 @@ const HomePage = {
         `;
       }
 
-      // Recent trainings list
       const recentEl = container.querySelector('#recentTrainings');
       if (!recentEl) return;
 
@@ -184,32 +182,20 @@ const HomePage = {
       recentEl.innerHTML = `
         <div>
           ${recent.map(t => {
-            // ตรวจสอบสถานะการเปิดรับสมัคร:
-            // 1. ถ้า API ส่ง hasActiveSessions มา → ใช้ค่านั้นโดยตรง (แม่นยำที่สุด)
-            // 2. Fallback: คำนวณเองจาก startDate (ถ้ายังมี startDate >= วันนี้)
-            // 3. Fallback สุดท้าย: ดูจาก status field
-            let isOpen;
-            if (typeof t.hasActiveSessions === 'boolean') {
-              isOpen = t.hasActiveSessions;
-            } else if (t.startDate) {
-              isOpen = t.startDate.toString().slice(0, 10) >= todayStr;
-            } else {
-              isOpen = t.status === 'ACTIVE';
-            }
+            // เช็กสถานะการเปิดรับสมัครจาก isExpired (ที่คำนวณจาก GAS)
+            const isClosed = t.isExpired === true;
+            const isOpen = !isClosed;
 
             const badgeHtml = isOpen
               ? `<span class="badge badge-success"><i class="fa-solid fa-lock-open"></i> เปิด</span>`
-              : `<span class="badge badge-gray"><i class="fa-solid fa-lock"></i> ปิด</span>`;
+              : `<span class="badge" style="background-color: #6c757d; color: #fff; padding: 0.25em 0.6em; border-radius: var(--radius-sm); font-size: var(--text-xs);"><i class="fa-solid fa-lock"></i> ปิด</span>`;
 
-            // ปุ่มลงทะเบียน: ถ้าปิดรับสมัครแล้ว ให้ disable และเปลี่ยน style
             const registerBtn = isOpen
               ? `<a href="#/register?id=${t.trainingId}" class="btn btn-outline-teal btn-sm">ลงทะเบียน</a>`
-              : `<span class="btn btn-sm" style="background:var(--gray-100); color:var(--gray-400); border:1px solid var(--gray-200); cursor:not-allowed;" title="ปิดรับสมัครแล้ว">ปิดรับสมัคร</span>`;
+              : `<button class="btn btn-sm" disabled style="background-color: var(--gray-100); color: var(--gray-400); border: 1px solid var(--gray-200); cursor: not-allowed; opacity: 0.7;" title="สิ้นสุดการจัดอบรมแล้ว">ปิดรับสมัคร</button>`;
 
             return `
-            <div style="display:flex; align-items:center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--gray-100); transition: background var(--transition-fast);"
-                 onmouseenter="this.style.background='var(--gray-50)'"
-                 onmouseleave="this.style.background=''">
+            <div style="display:flex; align-items:center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--gray-100);">
               <div style="width:44px; height:44px; border-radius:var(--radius-lg); background: linear-gradient(135deg, var(--navy-100), var(--teal-50)); display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0;"><i class="fa-solid fa-clipboard-list"></i></div>
               <div style="flex:1; min-width:0;">
                 <div style="font-weight: var(--fw-semi); color: var(--gray-800); font-size: var(--text-sm); margin-bottom: 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.title}</div>
@@ -217,37 +203,30 @@ const HomePage = {
               </div>
               ${badgeHtml}
               <div style="display:flex; gap: 6px; align-items:center;">
-                <button class="btn btn-outline-navy btn-sm qr-btn" data-id="${t.trainingId}" data-title="${t.title}" title="สร้าง QR Code สำหรับลงทะเบียน" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-qrcode"></i></button>
-                <button class="btn btn-outline-navy btn-sm edit-btn" data-id="${t.trainingId}" title="แก้ไขข้อมูลการอบรม" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button class="btn btn-outline-navy btn-sm qr-btn" data-id="${t.trainingId}" data-title="${t.title}" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-qrcode"></i></button>
+                <button class="btn btn-outline-navy btn-sm edit-btn" data-id="${t.trainingId}" style="padding: 0 var(--space-2); height: 32px;"><i class="fa-solid fa-pen-to-square"></i></button>
                 ${registerBtn}
               </div>
             </div>
-          `}).join('')}
+            `;
+          }).join('')}
         </div>
       `;
 
-      recentEl.querySelectorAll('.qr-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const id = btn.getAttribute('data-id');
-          const title = btn.getAttribute('data-title');
-          this._showQRModal(id, title);
-        });
-      });
+      // Event Listeners
+      recentEl.querySelectorAll('.qr-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this._showQRModal(btn.dataset.id, btn.dataset.title);
+      }));
 
-      recentEl.querySelectorAll('.edit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const id = btn.getAttribute('data-id');
-          this._handleEditClick(id);
-        });
-      });
+      recentEl.querySelectorAll('.edit-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this._handleEditClick(btn.dataset.id);
+      }));
 
     } catch (err) {
       const statsGrid = container.querySelector('#statsGrid');
-      const recentEl  = container.querySelector('#recentTrainings');
+      const recentEl = container.querySelector('#recentTrainings');
       if (statsGrid) statsGrid.innerHTML = '';
       if (recentEl) {
         UI.showError(recentEl, 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, () => this._loadData(container));
