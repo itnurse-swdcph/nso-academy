@@ -19,7 +19,7 @@ const ManagePage = {
     this._renderGate(container);
   },
 
-  _renderGate(container) {
+ _renderGate(container) {
     const isAdmin = Utils.storage.get('admin_logged_in') === true;
     container.innerHTML = `
       <div class="animate-fade-in">
@@ -60,6 +60,7 @@ const ManagePage = {
     `;
 
     this._loadTrainings();
+    
     if (!isAdmin) {
       document.getElementById('mgmtCodeInput').addEventListener('input', (e) => {
         e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -68,42 +69,24 @@ const ManagePage = {
         if (e.key === 'Enter') this._handleUnlock(container);
       });
     }
+    
     document.getElementById('unlockBtn').addEventListener('click', () => this._handleUnlock(container));
     
     document.getElementById('adminLoginBtn').addEventListener('click', async () => {
       if (isAdmin) {
         const confirmed = await UI.confirm('ต้องการออกจากระบบแอดมินหรือไม่?', 'ออกจากระบบ');
         if (!confirmed) return;
+        
         UI.showLoadingOverlay('กำลังออกจากระบบ...');
-        // Clear admin flag and any auth tokens
+        
+        // เคลียร์สถานะแอดมินและ Token
         Utils.storage.remove('admin_logged_in');
         Utils.storage.remove('token');
-        // Optionally clear all storage
-        // Utils.storage.clear();
+        
         UI.success('ออกจากระบบแอดมินแล้ว');
         UI.hideLoadingOverlay();
-        // Redirect to login page to ensure full logout
-        window.location.href = '/login';
-      } else {
-        UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
-        UI.promptAdminLogin((password) => password === '11450')
-          .then((success) => {
-            UI.hideLoadingOverlay();
-            if (success) {
-              Utils.storage.set('admin_logged_in', true);
-              UI.success('เข้าสู่ระบบแอดมินสำเร็จ');
-              this._renderGate(container);
-            }
-          });
-      }
-    });
-      if (isAdmin) {
-        const confirmed = await UI.confirm('ต้องการออกจากระบบแอดมินหรือไม่?', 'ออกจากระบบ');
-        if (!confirmed) return;
-        UI.showLoadingOverlay('กำลังออกจากระบบ...');
-        Utils.storage.remove('admin_logged_in');
-        UI.success('ออกจากระบบแอดมินแล้ว');
-        UI.hideLoadingOverlay();
+        
+        // โหลดหน้าฟอร์มใหม่เพื่อปรับสถานะ UI เป็นผู้ใช้ปกติ
         this._renderGate(container);
       } else {
         UI.showLoadingOverlay('กำลังเข้าสู่ระบบ...');
