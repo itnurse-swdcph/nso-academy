@@ -407,17 +407,22 @@ const ManagePage = {
       String(s.id).trim() === String(sId).trim()
     );
     
-    // ฟังก์ชันช่วยแปลงวันที่ให้เป็นภาษาไทยแบบเต็มรูป
+    // ฟังก์ชันช่วยแปลงวันที่ให้เป็นภาษาไทยแบบเต็มรูป (รองรับ range ด้วย ~)
     const toThaiDateFull = (dateStr) => {
       if (!dateStr) return '';
-      let match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/); // รูปแบบ YYYY-MM-DD
+      const raw = String(dateStr);
+      // ถ้าเป็น date range (เช่น 2026-06-29~2026-07-01) ให้ใช้ Utils.formatDateRange
+      if (raw.includes('~')) {
+        return Utils.formatDateRange(raw.split('~')[0], raw.split('~')[1], 'long');
+      }
+      let match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/); // รูปแบบ YYYY-MM-DD
       let year, month, day;
       if (match) {
         year = parseInt(match[1]);
         month = parseInt(match[2]);
         day = parseInt(match[3]);
       } else {
-        match = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // รูปแบบ DD/MM/YYYY
+        match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // รูปแบบ DD/MM/YYYY
         if (match) {
           day = parseInt(match[1]);
           month = parseInt(match[2]);
@@ -569,130 +574,82 @@ const ManagePage = {
       return;
     }
 
+    // ใช้ Utils.buildAttendanceHTML ที่ปรับปรุงแล้วเพื่อสร้าง HTML ใบเซ็นชื่อ
+    // ซึ่งรองรับ: narrow margins, Sarabun font, จัดกลุ่มตามหน่วยงาน (ไม่มีแถวหัวหน่วยงาน),
+    // dynamic signature columns ตามจำนวนวัน, หัวตารางซ้ำทุกหน้า
     const courseTitle = trainingObj.title || 'ไม่ระบุหัวข้อ';
     const location = trainingObj.location || 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน';
-    const sId = sessionObj.sessionId || sessionObj.id || 'ไม่ระบุรอบ';
 
-    // จัดการฟอร์แมตวันที่ให้เป็น "วันที่ XX เดือน XXXXX พ.ศ.XXXX"
-    const toThaiDateFullPrint = (dateStr) => {
-      if (!dateStr) return { day: '', month: '', year: '' };
-      let match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      let year, month, day;
-      if (match) {
-        year = parseInt(match[1]); month = parseInt(match[2]); day = parseInt(match[3]);
-      } else {
-        match = String(dateStr).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-        if (match) {
-          day = parseInt(match[1]); month = parseInt(match[2]); year = parseInt(match[3]);
-        }
-      }
-      if (day && month && year) {
-        const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        const thYear = year < 2400 ? year + 543 : year;
-        return { day, month: thaiMonthsFull[month - 1], year: thYear };
-      }
-      return { day: dateStr, month: '', year: '' };
-    };
-
-    // จัดการเวลาให้อยู่ในฟอร์แมต "HH.MM" (ใช้จุดแทน colon ตามโครงสร้างราชการ)
-    const formatTimePrint = (timeStr) => {
-      if (!timeStr) return '';
-      const str = String(timeStr).trim();
-      if (str.includes('T') && str.includes('Z')) {
-        const match = str.match(/T(\d{2}):(\d{2}):(\d{2})/);
-        if (match) {
-          let h = parseInt(match[1], 10);
-          let m = parseInt(match[2], 10);
-          let s = parseInt(match[3], 10);
-          h = (h + 7) % 24;
-          if (str.startsWith('1899-12-30')) {
-            m -= 17; s -= 56;
-            if (s < 0) { s += 60; m -= 1; }
-            if (m < 0) { m += 60; h -= 1; }
-            if (h < 0) { h += 24; }
-            m = Math.round(m / 5) * 5;
-            if (m === 60) { m = 0; h = (h + 1) % 24; }
-          }
-          const hh = String(h).padStart(2, '0');
-          const mm = String(m).padStart(2, '0');
-          return `${hh}.${mm}`; 
-        }
-      }
-      return str.replace(':', '.'); 
-    };
-
-    // รวบรวมข้อความ Header บรรทัดที่ 3
-    let dateText = '';
-    let timeText = '';
-
+    // ── 1. รวบรวมวันที่ทั้งหมดของรอบนี้ ──────────────────────────────
     const dateVal = sessionObj.date || sessionObj.sessionDate;
-    if (dateVal) {
-      const dObj = toThaiDateFullPrint(dateVal);
-      if (dObj.month) {
-        dateText = `วันที่ ${dObj.day} เดือน ${dObj.month} พ.ศ.${dObj.year}`;
+    let sessionDays = [];
+
+    if (Array.isArray(sessionObj.sessionDates) && sessionObj.sessionDates.length > 0) {
+      sessionDays = sessionObj.sessionDates;
+    } else if (dateVal) {
+      const raw = String(dateVal);
+      if (raw.includes('~')) {
+        const [startStr, endStr] = raw.split('~');
+        const start = new Date(startStr.trim());
+        const end = new Date(endStr.trim());
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          sessionDays.push(d.toISOString().slice(0, 10));
+        }
       } else {
-        dateText = `วันที่ ${dateVal}`;
-      }
-    } else {
-      const regex = /SES-(\d{4})(\d{2})(\d{2})/i;
-      const match = String(sId).match(regex);
-      if (match) {
-        const yearEN = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10);
-        const day = parseInt(match[3], 10);
-        const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        dateText = `วันที่ ${day} เดือน ${thaiMonthsFull[month - 1]} พ.ศ.${yearEN + 543}`;
-      } else {
-        dateText = `รอบรหัส ${sId}`;
+        sessionDays = [raw.split('T')[0]];
       }
     }
 
-    const sTime = formatTimePrint(sessionObj.startTime);
-    const eTime = formatTimePrint(sessionObj.endTime);
-    if (sTime && eTime) {
-      timeText = `เวลา ${sTime}-${eTime} น.`;
-    } else if (sessionObj.time) {
-      timeText = `เวลา ${formatTimePrint(sessionObj.time)} น.`;
-    } else {
-       const firstRow = participantsList && participantsList[0];
-       if (firstRow && (firstRow.sessionTime || firstRow.time)) {
-           timeText = `เวลา ${formatTimePrint(firstRow.sessionTime || firstRow.time)} น.`;
-       } else {
-           timeText = '(ไม่ระบุเวลา)';
-       }
-    }
+    if (!sessionDays.length) sessionDays = [''];
+    const isMultiDay = sessionDays.length > 1;
 
-    const headerLine3 = `${dateText} ${timeText} ณ ${location}`;
+    // ── 2. สร้าง label วันที่แบบย่อ เช่น "29 มิ.ย.69" ────────────────
+    const dayLabels = sessionDays.map(d =>
+      d ? Utils.dateInputToThai(d, 'short') : 'ลายมือชื่อ'
+    );
 
-    // จัดเรียงตามหน่วยงาน
+    // ── 3. สร้าง date range สำหรับหัวเรื่อง ──────────────────────────
+    const dateRangeStr = sessionDays.length > 1
+      ? Utils.formatDateRange(sessionDays[0], sessionDays[sessionDays.length - 1], 'long')
+      : (sessionDays[0] ? Utils.dateInputToThai(sessionDays[0], 'long') : '-');
+
+    const timeStr = (sessionObj.startTime && sessionObj.endTime)
+      ? `เวลา ${Utils.formatTime(sessionObj.startTime)} – ${Utils.formatTime(sessionObj.endTime)} น.`
+      : '';
+
+    // ── 4. จัดเรียงตามหน่วยงาน ──────────────────────────────────────
     const sortedList = [...participantsList].sort((a, b) =>
       (a.department || '').localeCompare(b.department || '', 'th')
     );
 
+    // ── 5. คำนวณ colspan ──────────────────────────────────────────────
+    const totalCols = 4 + sessionDays.length;
+
+    // ── 6. สร้าง thead คอลัมน์ลายมือชื่อ ──────────────────────────────
+    const sigColWidth = isMultiDay ? Math.floor(28 / sessionDays.length) : 28;
+    const sigHeaders = dayLabels.map(label =>
+      `<th style="width:${sigColWidth}%; padding:5px 4px; border:1px solid #000; text-align:center; font-size:10pt;">${label}</th>`
+    ).join('');
+
+    // ── 7. สร้าง tbody (จัดกลุ่มตามหน่วยงาน — ไม่มีแถวหัวหน่วยงาน) ──
     let rowsHtml = '';
     let no = 1;
-    let lastDept = null;
-    
     sortedList.forEach(p => {
-      if (p.department !== lastDept) {
-        rowsHtml += `
-          <tr>
-            <td colspan="5" style="background:#f3f4f6; font-weight:bold; font-size:12pt; padding:8px 12px; border:1px solid #333;">
-              หน่วยงาน: ${p.department || '-'}
-            </td>
-          </tr>`;
-        lastDept = p.department;
-      }
+      const sigCells = sessionDays.map(() =>
+        `<td style="border:1px solid #000; padding:0; height:26px;"></td>`
+      ).join('');
+
       rowsHtml += `
         <tr>
-          <td style="text-align:center; padding:8px; border:1px solid #333;">${no++}</td>
-          <td style="padding:8px; border:1px solid #333;">${p.fullName || '-'}</td>
-          <td style="padding:8px; border:1px solid #333; word-break: break-word;">${p.position || '-'}</td>
-          <td style="padding:8px; border:1px solid #333; word-break: break-word;">${p.department || '-'}</td>
-          <td style="text-align:center; padding:8px; border:1px solid #333;"></td>
+          <td style="text-align:center; padding:4px 3px; border:1px solid #000; font-size:10pt; white-space:nowrap;">${no++}</td>
+          <td style="padding:4px 6px; border:1px solid #000; font-size:10pt;">${p.fullName || '-'}</td>
+          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.position || '-'}</td>
+          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.department || '-'}</td>
+          ${sigCells}
         </tr>`;
     });
 
+    // ── 8. สร้าง HTML ────────────────────────────────────────────────
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="th">
@@ -701,60 +658,93 @@ const ManagePage = {
         <title>ใบลงทะเบียน - ${courseTitle}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-          body { font-family: 'Sarabun', sans-serif; color: #000; background: #fff; margin: 0; padding: 20px; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: 'Sarabun', sans-serif;
+            color: #000;
+            background: #fff;
+            margin: 0;
+            padding: 15px;
+            font-size: 10.5pt;
+          }
           
           @media print {
-            @page { size: A4 landscape; margin: 15mm; }
-            body { padding: 0 !important; margin: 0 !important; -webkit-print-color-adjust: exact; }
+            @page {
+              size: A4 landscape;
+              margin: 10mm 8mm;
+            }
+            body {
+              padding: 0 !important;
+              margin: 0 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+              font-family: 'Sarabun', sans-serif !important;
+              font-size: 10.5pt !important;
+            }
             .no-print { display: none !important; }
-            table { page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-            thead { display: table-header-group; }
-            tfoot { display: table-footer-group; }
+            .att-table { page-break-inside: auto; }
+            .att-table tr { page-break-inside: avoid; page-break-after: auto; }
+            .att-table thead { display: table-header-group; }
+            .att-table tfoot { display: table-footer-group; }
           }
 
-          .print-header-content { text-align: center; margin-bottom: 15px; }
-          .print-header-content h2 { font-size: 16pt; font-weight: bold; margin: 0 0 5px 0; }
-          .print-header-content h3 { font-size: 14pt; font-weight: normal; margin: 0 0 5px 0; }
-
-          .print-table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-top: 10px; }
-          .print-table th, .print-table td { border: 1px solid #333; }
+          .att-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+          }
+          .att-table th, .att-table td {
+            border: 1px solid #000;
+            font-family: 'Sarabun', sans-serif;
+          }
+          .doc-header {
+            text-align: center;
+            margin-bottom: 6px;
+            font-family: 'Sarabun', sans-serif;
+          }
+          .doc-header h2 { font-size: 14pt; font-weight: bold; margin: 0 0 3px 0; }
+          .doc-header h3 { font-size: 11pt; font-weight: normal; margin: 0 0 2px 0; }
         </style>
       </head>
       <body>
-        <div class="no-print" style="text-align:right; margin-bottom: 15px;">
-          <button onclick="window.print()" style="padding: 10px 20px; font-size: 15px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 6px; font-family: 'Sarabun'; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <div class="no-print" style="text-align:right; margin-bottom: 12px;">
+          <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 6px; font-family: 'Sarabun'; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
             🖨️ พิมพ์เอกสารใบลงทะเบียน
           </button>
         </div>
         
-        <table class="print-table">
+        <table class="att-table">
           <thead>
+            <!-- ส่วนหัวเรื่อง — พิมพ์ซ้ำทุกหน้า -->
             <tr>
-              <td colspan="5" style="border: none; padding-bottom: 15px;">
-                <div class="print-header-content">
+              <td colspan="${totalCols}" style="border:none; padding-bottom:8px;">
+                <div class="doc-header">
                   <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
-                  <h2>เรื่อง: ${courseTitle}</h2>
-                  <h3>${headerLine3}</h3>
+                  <h2>เรื่อง ${courseTitle}</h2>
+                  <h3>วันที่ ${dateRangeStr}${timeStr ? ' ' + timeStr : ''} ณ ${location}</h3>
                 </div>
               </td>
             </tr>
-            <tr style="background:#e5e7eb; font-weight:bold; text-align:center;">
-              <th style="width: 5%; padding: 10px;">ลำดับ</th>
-              <th style="width: 20%; padding: 10px;">ชื่อ - นามสกุล</th>
-              <th style="width: 25%; padding: 10px;">ตำแหน่ง</th>
-              <th style="width: 30%; padding: 10px;">หน่วยงาน/สังกัด</th>
-              <th style="width: 20%; padding: 10px;">ลายมือชื่อ</th>
+            <!-- หัวคอลัมน์ -->
+            <tr style="background:#d1d5db; font-weight:bold; text-align:center; font-size:10pt;">
+              <th style="width:4%; padding:5px 3px; border:1px solid #000;">ลำดับ</th>
+              <th style="width:24%; padding:5px 6px; border:1px solid #000; text-align:left;">ชื่อ – นามสกุล</th>
+              <th style="width:${isMultiDay ? 18 : 20}%; padding:5px 6px; border:1px solid #000; text-align:left;">ตำแหน่ง</th>
+              <th style="width:${isMultiDay ? 16 : 20}%; padding:5px 6px; border:1px solid #000; text-align:left;">หน่วยงาน/สังกัด</th>
+              ${sigHeaders}
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
           </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="${totalCols}" style="border:none; padding-top:8px; text-align:right; font-size:10pt; font-weight:bold;">
+                รวมจำนวนผู้เข้าอบรมทั้งหมด: ${sortedList.length} ท่าน
+              </td>
+            </tr>
+          </tfoot>
         </table>
-
-        <div style="margin-top: 15px; text-align: right; font-size: 11pt;">
-          <strong>รวมจำนวนผู้เข้าอบรมทั้งหมด: ${sortedList.length} ท่าน</strong>
-        </div>
         
         <script>
           window.onload = () => { setTimeout(() => window.print(), 500); }
