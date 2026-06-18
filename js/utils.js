@@ -515,48 +515,36 @@ const Utils = {
 
     // ── 6. สร้าง thead คอลัมน์ลายมือชื่อ ──────────────────────────
     const sigHeaders = dayLabels.map(label =>
-      `<th style="width:${isMultiDay ? Math.floor(28 / sessionDays.length) : 28}%; padding:5px 4px; border:1px solid #000; text-align:center; font-size:10pt;">${label}</th>`
+      `<th style="width:${isMultiDay ? Math.floor(28 / sessionDays.length) : 28}%; padding:5px 4px; border:1px solid #000; text-align:center; font-size:9.5pt;">${label}</th>`
     ).join('');
 
     // ── 7. สร้าง tbody ─────────────────────────────────────────────
     let rows = '';
     let no = 1;
-    let lastDept = null;
     sorted.forEach(reg => {
-      // แถวหัวหน่วยงาน (inline — ไม่แยก colspan row แต่ใส่เป็น dept label บรรทัดแรกของกลุ่ม)
-      if (reg.department !== lastDept) {
-        lastDept = reg.department;
-        rows += `
-          <tr>
-            <td colspan="${totalCols}" style="background:#ececec; font-weight:bold; font-size:9.5pt; padding:3px 6px; border:1px solid #000; letter-spacing:0.02em;">
-              หน่วยงาน: ${reg.department || 'ไม่ระบุหน่วยงาน'}
-            </td>
-          </tr>`;
-      }
-
       // แถวรายชื่อ + ช่องเซ็นชื่อแต่ละวัน
       const sigCells = sessionDays.map(() =>
-        `<td style="border:1px solid #000; padding:0; height:26px;"></td>`
+        `<td style="border:1px solid #000; padding:0; height:24px;"></td>`
       ).join('');
 
       rows += `
         <tr>
-          <td style="text-align:center; padding:4px 3px; border:1px solid #000; font-size:10pt; white-space:nowrap;">${no++}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:10pt;">${reg.fullName || '-'}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${reg.position || '-'}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${reg.department || '-'}</td>
+          <td style="text-align:center; padding:3px 3px; border:1px solid #000; font-size:9.5pt; white-space:nowrap;">${no++}</td>
+          <td style="padding:3px 6px; border:1px solid #000; font-size:9.5pt;">${reg.fullName || '-'}</td>
+          <td style="padding:3px 6px; border:1px solid #000; font-size:9pt;">${reg.position || '-'}</td>
+          <td style="padding:3px 6px; border:1px solid #000; font-size:9pt;">${reg.department || '-'}</td>
           ${sigCells}
         </tr>`;
     });
 
     // ── 8. Render ────────────────────────────────────────────────
     return `
-      <div style="font-family:'Sarabun',sans-serif; color:#000; background:#fff; font-size:10.5pt;">
+      <div style="font-family:'Sarabun',sans-serif; color:#000; background:#fff; font-size:9.5pt;">
         <style>
           @media print {
             @page {
               size: A4 ${isMultiDay && sessionDays.length > 2 ? 'landscape' : 'landscape'};
-              margin: 10mm 8mm;
+              margin: 10mm;
             }
             body {
               -webkit-print-color-adjust: exact;
@@ -564,7 +552,7 @@ const Utils = {
               padding: 0 !important;
               margin: 0 !important;
               font-family: 'Sarabun', sans-serif !important;
-              font-size: 10.5pt !important;
+              font-size: 9.5pt !important;
             }
             .att-table { page-break-inside: auto; }
             .att-table tr { page-break-inside: avoid; page-break-after: auto; }
@@ -604,7 +592,7 @@ const Utils = {
               </td>
             </tr>
             <!-- หัวคอลัมน์ -->
-            <tr style="background:#d1d5db; font-weight:bold; text-align:center; font-size:10pt;">
+            <tr style="background:#d1d5db; font-weight:bold; text-align:center; font-size:9.5pt;">
               <th style="width:4%; padding:5px 3px; border:1px solid #000;">ลำดับ</th>
               <th style="width:24%; padding:5px 6px; border:1px solid #000; text-align:left;">ชื่อ – นามสกุล</th>
               <th style="width:${isMultiDay ? 18 : 20}%; padding:5px 6px; border:1px solid #000; text-align:left;">ตำแหน่ง</th>
