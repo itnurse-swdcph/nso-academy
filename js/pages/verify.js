@@ -100,7 +100,14 @@ const VerifyPage = {
         sessions.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.sessionId;
-          opt.textContent = `${Utils.dateInputToThai(s.sessionDate, 'long')} เวลา ${Utils.formatTime(s.startTime)} - ${Utils.formatTime(s.endTime)} น.`;
+          // Dynamic date range: single day or multi-day range
+          const dateLabel = (() => {
+            if (Array.isArray(s.sessionDates) && s.sessionDates.length > 1) {
+              return Utils.formatDateRange(s.sessionDates[0], s.sessionDates[s.sessionDates.length - 1], 'long');
+            }
+            return Utils.dateInputToThai(s.sessionDate, 'long');
+          })();
+          opt.textContent = `${dateLabel} เวลา ${Utils.formatTime(s.startTime)} - ${Utils.formatTime(s.endTime)} น.`;
           sessSel.appendChild(opt);
         });
         sessSel.disabled = false;
@@ -190,7 +197,12 @@ const VerifyPage = {
             <div class="card-title"><i class="fa-solid fa-clipboard-list"></i> รายชื่อผู้เข้าอบรม</div>
             <div class="card-subtitle">
               ${training?.title || ''} ·
-              ${session ? Utils.dateInputToThai(session.sessionDate, 'long') : ''}
+              ${session ? (() => {
+                if (Array.isArray(session.sessionDates) && session.sessionDates.length > 1) {
+                  return Utils.formatDateRange(session.sessionDates[0], session.sessionDates[session.sessionDates.length - 1], 'long');
+                }
+                return Utils.dateInputToThai(session.sessionDate, 'long');
+              })() : ''}
               <span class="participants-count" id="participantsCount">· รวม ${regs.length} ท่าน</span>
             </div>
           </div>
@@ -251,7 +263,14 @@ const VerifyPage = {
 
     const training = this._currentTraining;
     const session  = this._currentSession;
-    const filename = `รายชื่อ_${training?.title || 'อบรม'}_${session ? Utils.dateInputToThai(session.sessionDate, 'numeric') : ''}`;
+    const sessionDateLabel = (() => {
+      if (!session) return '';
+      if (Array.isArray(session.sessionDates) && session.sessionDates.length > 1) {
+        return Utils.formatDateRange(session.sessionDates[0], session.sessionDates[session.sessionDates.length - 1], 'numeric');
+      }
+      return Utils.dateInputToThai(session.sessionDate, 'numeric');
+    })();
+    const filename = `รายชื่อ_${training?.title || 'อบรม'}_${sessionDateLabel}`;
 
     Utils.exportExcel(this._registrations, filename, {
       sheetName: 'รายชื่อผู้เข้าอบรม',
