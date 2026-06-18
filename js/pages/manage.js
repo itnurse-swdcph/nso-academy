@@ -105,6 +105,8 @@ const ManagePage = {
 
   async _loadTrainings() {
     try {
+      // ⚠️ หน้า Manage แสดงหัวข้ออบรมทั้งหมด — ไม่กรองตามวันที่
+      // เจ้าหน้าที่ต้องเห็นข้อมูลที่ผ่านไปแล้วเพื่อจัดการ/อนุมัติ/วิเคราะห์ได้ตามปกติ
       const trainings = await API.getTrainings();
       const sel = document.getElementById('mgmtTrainingSel');
       if (!sel) return;
