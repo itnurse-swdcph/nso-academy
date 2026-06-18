@@ -245,7 +245,8 @@ const ManagePage = {
         </div>
         <div id="adminVerifyContent" style="text-align:center; padding: var(--space-8);">
           <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--navy-500);"></i>
-          <p style="margin-top: var(--space-3); color: var(--gray-600);">กำลังดึงข้อมูลและจำแนกรายชื่อจากระบบ...</p>
+          <p id="loadingStatusText" style="margin-top: var(--space-3); color: var(--gray-600);">กำลังเชื่อมต่อเซิร์ฟเวอร์...</p>
+          <p style="margin-top: var(--space-1); color: var(--gray-400); font-size: var(--text-xs);">การโหลดครั้งแรกอาจใช้เวลาสักครู่ กรุณารอสักประเดี๋ยว</p>
         </div>
       </div>
     `;
@@ -254,13 +255,26 @@ const ManagePage = {
       this._renderManagementHub(container, trainingId);
     });
 
+    // ฟังก์ชันอัปเดตสถานะการโหลด
+    const updateLoadingStatus = (text) => {
+      const el = document.getElementById('loadingStatusText');
+      if (el) el.textContent = text;
+    };
+
     try {
-      // โหลดข้อมูลการลงทะเบียน ข้อมูลรอบการอบรม และ **ข้อมูลหัวข้ออบรม (เพื่อเอาสถานที่จัด)**
-      const [allRegistrations, sessionsData, tDetail] = await Promise.all([
-        API.getRegistrationsByTraining(trainingId),
+      // โหลดข้อมูลแบบ Sequential เพื่อลดภาระ GAS backend (ซึ่งเป็น single-threaded)
+      // ขั้นตอน 1: โหลดข้อมูลรอบการอบรม และข้อมูลหัวข้ออบรม (เบา)
+      updateLoadingStatus('กำลังโหลดข้อมูลรอบการอบรม...');
+      const [sessionsData, tDetail] = await Promise.all([
         API.getTrainingSessions(trainingId).catch(() => []),
         API.getTrainingById(trainingId).catch(() => null)
       ]);
+
+      // ขั้นตอน 2: โหลดข้อมูลการลงทะเบียน (หนัก — ใช้เวลานาน)
+      updateLoadingStatus('กำลังดึงข้อมูลรายชื่อผู้ลงทะเบียน...');
+      const allRegistrations = await API.getRegistrationsByTraining(trainingId);
+      
+      updateLoadingStatus('กำลังจำแนกและจัดกลุ่มข้อมูล...');
       
       const printTrainingObj = tDetail || { title: title, location: 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน' };
       const currentTrainingIdStr = String(trainingId).trim();
@@ -387,11 +401,38 @@ const ManagePage = {
       });
 
     } catch (err) {
-      console.error(err);
-      document.getElementById('adminVerifyContent').innerHTML = `
-        <div class="alert alert-danger">
-          <i class="fa-solid fa-circle-exclamation"></i> ไม่สามารถประมวลผลข้อมูลรายชื่อได้: ${err.message}
-        </div>`;
+      console.error('[Admin Verify] Load failed:', err);
+      const isTimeout = err.message.includes('หมดเวลา') || err.message.includes('AbortError');
+      const contentDiv = document.getElementById('adminVerifyContent');
+      if (contentDiv) {
+        contentDiv.innerHTML = `
+          <div style="text-align: center; padding: var(--space-6);">
+            <div style="background: var(--white); border: 1px solid ${isTimeout ? 'var(--yellow-300)' : 'var(--red-300)'}; border-radius: var(--radius-lg); padding: var(--space-6); max-width: 500px; margin: 0 auto; box-shadow: var(--shadow-sm);">
+              <i class="fa-solid ${isTimeout ? 'fa-clock-rotate-left' : 'fa-circle-exclamation'}" style="font-size: 2.5rem; color: ${isTimeout ? 'var(--yellow-500)' : 'var(--red-500)'}; margin-bottom: var(--space-3);"></i>
+              <h3 style="color: var(--navy-800); margin: 0 0 var(--space-2) 0;">${isTimeout ? 'เซิร์ฟเวอร์ตอบช้า' : 'ไม่สามารถโหลดข้อมูลได้'}</h3>
+              <p style="color: var(--gray-600); font-size: var(--text-sm); margin-bottom: var(--space-4);">
+                ${isTimeout 
+                  ? 'เซิร์ฟเวอร์ Google Apps Script ใช้เวลาตอบสนองนานเกินไป (อาจเกิดจากข้อมูลเยอะ หรือเซิร์ฟเวอร์กำลังเริ่มต้นระบบ)' 
+                  : err.message}
+              </p>
+              <div style="display: flex; gap: var(--space-2); justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="retryLoadBtn">
+                  <i class="fa-solid fa-rotate-right"></i> ลองโหลดใหม่
+                </button>
+                <button class="btn btn-outline-navy btn-sm" id="backToHubBtn2">
+                  <i class="fa-solid fa-arrow-left"></i> กลับหน้าระบบจัดการ
+                </button>
+              </div>
+              ${isTimeout ? '<p style="color: var(--gray-400); font-size: var(--text-xs); margin-top: var(--space-3);">💡 ลองกดโหลดใหม่อีกครั้ง มักจะสำเร็จในครั้งที่ 2 เพราะเซิร์ฟเวอร์ warm แล้ว</p>' : ''}
+            </div>
+          </div>`;
+        document.getElementById('retryLoadBtn').addEventListener('click', () => {
+          this._renderAdminVerification(container, trainingId, title);
+        });
+        document.getElementById('backToHubBtn2').addEventListener('click', () => {
+          this._renderManagementHub(container, trainingId);
+        });
+      }
     }
   },
 
