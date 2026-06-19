@@ -634,13 +634,21 @@ const ManagePage = {
       return;
     }
 
-    // ใช้ Utils.buildAttendanceHTML ที่ปรับปรุงแล้วเพื่อสร้าง HTML ใบเซ็นชื่อ
-    // ซึ่งรองรับ: narrow margins, Sarabun font, จัดกลุ่มตามหน่วยงาน (ไม่มีแถวหัวหน่วยงาน),
-    // dynamic signature columns ตามจำนวนวัน, หัวตารางซ้ำทุกหน้า
     const courseTitle = trainingObj.title || 'ไม่ระบุหัวข้อ';
-    const location = trainingObj.location || 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน';
+    const location    = trainingObj.location || 'โรงพยาบาลสมเด็จพระยุพราชสว่างแดนดิน';
 
-    // ── 1. รวบรวมวันที่ทั้งหมดของรอบนี้ ──────────────────────────────
+    // ── ฟังก์ชันแปลง YYYY-MM-DD → วันที่ไทยแบบเต็ม ──────────────────
+    const toThaiDateFull = (isoStr) => {
+      if (!isoStr) return '';
+      const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                          'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+      const m = String(isoStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return isoStr;
+      const y = parseInt(m[1]), mo = parseInt(m[2]), d = parseInt(m[3]);
+      return `${d} ${thaiMonths[mo - 1]} ${y < 2400 ? y + 543 : y}`;
+    };
+
+    // ── 1. รวบรวมวันที่ทั้งหมดของรอบนี้ ─────────────────────────────
     const dateVal = sessionObj.date || sessionObj.sessionDate;
     let sessionDays = [];
 
@@ -651,7 +659,7 @@ const ManagePage = {
       if (raw.includes('~')) {
         const [startStr, endStr] = raw.split('~');
         const start = new Date(startStr.trim());
-        const end = new Date(endStr.trim());
+        const end   = new Date(endStr.trim());
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
           sessionDays.push(d.toISOString().slice(0, 10));
         }
@@ -659,57 +667,79 @@ const ManagePage = {
         sessionDays = [raw.split('T')[0]];
       }
     }
-
     if (!sessionDays.length) sessionDays = [''];
-    const isMultiDay = sessionDays.length > 1;
 
-    // ── 2. สร้าง label วันที่แบบย่อ เช่น "29 มิ.ย.69" ────────────────
-    const dayLabels = sessionDays.map(d =>
-      d ? Utils.dateInputToThai(d, 'short') : 'ลายมือชื่อ'
-    );
-
-    // ── 3. สร้าง date range สำหรับหัวเรื่อง ──────────────────────────
-    const dateRangeStr = sessionDays.length > 1
-      ? Utils.formatDateRange(sessionDays[0], sessionDays[sessionDays.length - 1], 'long')
-      : (sessionDays[0] ? Utils.dateInputToThai(sessionDays[0], 'long') : '-');
-
+    // ── 2. ข้อมูลเวลา ────────────────────────────────────────────────
     const timeStr = (sessionObj.startTime && sessionObj.endTime)
       ? `เวลา ${Utils.formatTime(sessionObj.startTime)} – ${Utils.formatTime(sessionObj.endTime)} น.`
       : '';
 
-    // ── 4. จัดเรียงตามหน่วยงาน ──────────────────────────────────────
+    // ── 3. จัดเรียงรายชื่อตามหน่วยงาน ───────────────────────────────
     const sortedList = [...participantsList].sort((a, b) =>
       (a.department || '').localeCompare(b.department || '', 'th')
     );
 
-    // ── 5. คำนวณ colspan ──────────────────────────────────────────────
-    const totalCols = 4 + sessionDays.length;
+    // ── 4. buildRows — ช่องลงชื่อเดียวต่อรายชื่อ ─────────────────────
+    const buildRows = () => {
+      let rows = '', no = 1;
+      sortedList.forEach(p => {
+        rows += `
+          <tr>
+            <td style="text-align:center; padding:4px 3px; border:1px solid #000; font-size:10pt; white-space:nowrap;">${no++}</td>
+            <td style="padding:4px 6px; border:1px solid #000; font-size:10pt;">${p.fullName || '-'}</td>
+            <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.position || '-'}</td>
+            <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.department || '-'}</td>
+            <td style="border:1px solid #000; padding:0; height:26px; width:28%;"></td>
+          </tr>`;
+      });
+      return rows;
+    };
 
-    // ── 6. สร้าง thead คอลัมน์ลายมือชื่อ ──────────────────────────────
-    const sigColWidth = isMultiDay ? Math.floor(28 / sessionDays.length) : 28;
-    const sigHeaders = dayLabels.map(label =>
-      `<th style="width:${sigColWidth}%; padding:5px 4px; border:1px solid #000; text-align:center; font-size:10pt;">${label}</th>`
-    ).join('');
+    // ── 5. buildTable — 1 ตารางต่อ 1 วัน ─────────────────────────────
+    const buildTable = (dayIso, isLast) => {
+      const dateLabel  = dayIso ? toThaiDateFull(dayIso) : '-';
+      const headerDate = `วันที่ ${dateLabel}${timeStr ? ' ' + timeStr : ''} ณ ${location}`;
+      const pageBreak  = !isLast ? 'style="break-after:page; page-break-after:always;"' : '';
 
-    // ── 7. สร้าง tbody (จัดกลุ่มตามหน่วยงาน — ไม่มีแถวหัวหน่วยงาน) ──
-    let rowsHtml = '';
-    let no = 1;
-    sortedList.forEach(p => {
-      const sigCells = sessionDays.map(() =>
-        `<td style="border:1px solid #000; padding:0; height:26px;"></td>`
-      ).join('');
+      return `
+        <div ${pageBreak}>
+          <table class="att-table">
+            <thead>
+              <tr>
+                <td colspan="5" style="border:none; padding-bottom:6px;">
+                  <div class="doc-header">
+                    <p class="doc-line">แบบลงทะเบียนเข้าร่วมประชุม/อบรม</p>
+                    <p class="doc-line">เรื่อง ${courseTitle}</p>
+                    <p class="doc-line doc-light">${headerDate}</p>
+                  </div>
+                </td>
+              </tr>
+              <tr style="background:#d1d5db; font-weight:bold; text-align:center; font-size:10pt;">
+                <th style="width:4%;  padding:5px 3px; border:1px solid #000;">ลำดับ</th>
+                <th style="width:24%; padding:5px 6px; border:1px solid #000; text-align:left;">ชื่อ – นามสกุล</th>
+                <th style="width:20%; padding:5px 6px; border:1px solid #000; text-align:left;">ตำแหน่ง</th>
+                <th style="width:24%; padding:5px 6px; border:1px solid #000; text-align:left;">หน่วยงาน/สังกัด</th>
+                <th style="width:28%; padding:5px 4px; border:1px solid #000; text-align:center;">ลายมือชื่อ</th>
+              </tr>
+            </thead>
+            <tbody>${buildRows()}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5" style="border:none; padding-top:6px; text-align:right; font-size:10pt; font-weight:bold;">
+                  รวมจำนวนผู้เข้าอบรมทั้งหมด: ${sortedList.length} ท่าน
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`;
+    };
 
-      rowsHtml += `
-        <tr>
-          <td style="text-align:center; padding:4px 3px; border:1px solid #000; font-size:10pt; white-space:nowrap;">${no++}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:10pt;">${p.fullName || '-'}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.position || '-'}</td>
-          <td style="padding:4px 6px; border:1px solid #000; font-size:9.5pt;">${p.department || '-'}</td>
-          ${sigCells}
-        </tr>`;
-    });
+    // ── 6. Loop สร้างทุกวัน ───────────────────────────────────────────
+    const tablesHtml = sessionDays
+      .map((day, i) => buildTable(day, i === sessionDays.length - 1))
+      .join('\n');
 
-    // ── 8. สร้าง HTML ────────────────────────────────────────────────
+    // ── 7. สร้าง HTML เอกสาร ─────────────────────────────────────────
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="th">
@@ -727,12 +757,8 @@ const ManagePage = {
             padding: 15px;
             font-size: 10.5pt;
           }
-          
           @media print {
-            @page {
-              size: A4 landscape;
-              margin: 10mm 8mm;
-            }
+            @page { size: A4 landscape; margin: 10mm 8mm; }
             body {
               padding: 0 !important;
               margin: 0 !important;
@@ -747,68 +773,23 @@ const ManagePage = {
             .att-table thead { display: table-header-group; }
             .att-table tfoot { display: table-footer-group; }
           }
-
-          .att-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 6px;
-          }
-          .att-table th, .att-table td {
-            border: 1px solid #000;
-            font-family: 'Sarabun', sans-serif;
-          }
-          .doc-header {
-            text-align: center;
-            margin-bottom: 6px;
-            font-family: 'Sarabun', sans-serif;
-          }
-          .doc-header h2 { font-size: 14pt; font-weight: bold; margin: 0 0 3px 0; }
-          .doc-header h3 { font-size: 11pt; font-weight: normal; margin: 0 0 2px 0; }
+          .att-table { width:100%; border-collapse:collapse; margin-top:6px; }
+          .att-table th, .att-table td { border:1px solid #000; font-family:'Sarabun',sans-serif; }
+          .doc-header { text-align:center; margin-bottom:6px; font-family:'Sarabun',sans-serif; }
+          .doc-line            { font-size:10.5pt; font-weight:bold;   margin:0 0 2px 0; }
+          .doc-line.doc-light  { font-weight:normal; }
         </style>
       </head>
       <body>
-        <div class="no-print" style="text-align:right; margin-bottom: 12px;">
-          <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #004d40; color: white; border: none; border-radius: 6px; font-family: 'Sarabun'; font-weight: 600; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        <div class="no-print" style="text-align:right; margin-bottom:12px;">
+          <button onclick="window.print()" style="padding:10px 20px; font-size:14px; cursor:pointer; background:#004d40; color:white; border:none; border-radius:6px; font-family:'Sarabun'; font-weight:600; box-shadow:0 2px 4px rgba(0,0,0,0.2);">
             🖨️ พิมพ์เอกสารใบลงทะเบียน
           </button>
         </div>
-        
-        <table class="att-table">
-          <thead>
-            <!-- ส่วนหัวเรื่อง — พิมพ์ซ้ำทุกหน้า -->
-            <tr>
-              <td colspan="${totalCols}" style="border:none; padding-bottom:8px;">
-                <div class="doc-header">
-                  <h2>แบบลงทะเบียนเข้าร่วมประชุม/อบรม</h2>
-                  <h2>เรื่อง ${courseTitle}</h2>
-                  <h3>วันที่ ${dateRangeStr}${timeStr ? ' ' + timeStr : ''} ณ ${location}</h3>
-                </div>
-              </td>
-            </tr>
-            <!-- หัวคอลัมน์ -->
-            <tr style="background:#d1d5db; font-weight:bold; text-align:center; font-size:10pt;">
-              <th style="width:4%; padding:5px 3px; border:1px solid #000;">ลำดับ</th>
-              <th style="width:24%; padding:5px 6px; border:1px solid #000; text-align:left;">ชื่อ – นามสกุล</th>
-              <th style="width:${isMultiDay ? 18 : 20}%; padding:5px 6px; border:1px solid #000; text-align:left;">ตำแหน่ง</th>
-              <th style="width:${isMultiDay ? 16 : 20}%; padding:5px 6px; border:1px solid #000; text-align:left;">หน่วยงาน/สังกัด</th>
-              ${sigHeaders}
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="${totalCols}" style="border:none; padding-top:8px; text-align:right; font-size:10pt; font-weight:bold;">
-                รวมจำนวนผู้เข้าอบรมทั้งหมด: ${sortedList.length} ท่าน
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-        
+        ${tablesHtml}
         <script>
           window.onload = () => { setTimeout(() => window.print(), 500); }
-        </script>
+        <\/script>
       </body>
       </html>
     `;
