@@ -12,7 +12,7 @@ const API_CONFIG = {
   RETRY_ATTEMPTS: 4,      // จำนวนครั้งที่ retry เมื่อเกิด network error
   RETRY_DELAY: 1500,      // milliseconds ระหว่าง retry (exponential backoff)
   // Action ที่ต้องใช้ timeout ยาวขึ้น (ข้อมูลเยอะหรือ GAS ประมวลผลนาน)
-  HEAVY_ACTIONS: ['getRegistrationsByTraining', 'getAnalytics', 'getAllParticipants', 'exportAttendancePDF', 'exportAnalyticsExcel']
+  HEAVY_ACTIONS: ['getRegistrationsByTraining', 'getAnalytics', 'getAllParticipants', 'exportAttendancePDF', 'exportAnalyticsExcel', 'exportLearningExcel', 'exportSatisfactionExcel']
 };
 
 const ApiService = {
@@ -133,6 +133,8 @@ const API = {
   // Export
   exportPDF: (sessionId)         => ApiService.request('exportAttendancePDF', { sessionId }),
   exportAnalyticsExcel: (id)     => ApiService.request('exportAnalyticsExcel', { trainingId: id }),
+  exportLearningExcel: (id)      => ApiService.request('exportLearningExcel', { trainingId: id }),
+  exportSatisfactionExcel: (id)  => ApiService.request('exportSatisfactionExcel', { trainingId: id }),
 
   // Setup (Admin)
   setupSpreadsheet: ()           => ApiService.request('setupSpreadsheet'),
