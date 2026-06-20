@@ -16,7 +16,10 @@ const SCHEMAS = {
   "SatisfactionForms": ["formQuestionId", "trainingId", "order", "questionText", "questionType", "isRequired"],
   "SatisfactionResponses": ["responseId", "formQuestionId", "trainingId", "participantId", "ratingValue", "textValue", "submittedAt"],
   "Analytics": ["analyticsId", "trainingId", "totalRegistrations", "approvedCount", "preTestAvg", "postTestAvg", "improvementPercent", "satisfactionAvg", "calculatedAt"],
-  "Config": ["key", "value", "description"]
+  "Config": ["key", "value", "description"],
+  // Snapshot sheets ที่ใช้เก็บผลลัพธ์ Export ล่าสุดของแต่ละหัวข้ออบรม (สร้างอัตโนมัติ ไม่ทับชีตข้อมูลหลัก)
+  "LearningExport": ["trainingId", "fullName", "preScore", "postScore", "improvementPercent", "passed", "exportedAt"],
+  "SatisfactionExport": ["trainingId", "anonLabel", "answersJson", "avgScore", "exportedAt"]
 };
 
 const SheetService = {
@@ -135,6 +138,28 @@ const SheetService = {
       }
     }
     return false;
+  },
+
+  /**
+   * ลบทุกแถวที่ keyCol ตรงกับ keyVal (ใช้ล้าง snapshot เดิมของ trainingId ก่อนเขียนใหม่)
+   * @param {string} sheetName - ชื่อ Sheet
+   * @param {string} keyCol - ชื่อคอลัมน์คีย์ เช่น 'trainingId'
+   * @param {any} keyVal - ค่าที่ต้องการลบ
+   */
+  deleteRecordsByKey: function(sheetName, keyCol, keyVal) {
+    const sheet = this.ensureSheetExists(sheetName);
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return;
+
+    const headers = data[0];
+    const keyColIndex = headers.indexOf(keyCol);
+    if (keyColIndex === -1) return;
+
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i][keyColIndex] === keyVal) {
+        sheet.deleteRow(i + 1);
+      }
+    }
   },
 
   /**
