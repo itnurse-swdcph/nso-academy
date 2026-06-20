@@ -155,6 +155,12 @@ function handleRequest(e) {
       case "exportAnalyticsExcel":
         responseData = ExportService.exportAnalyticsExcel(payload.trainingId);
         break;
+      case "exportLearningExcel":
+        responseData = ExportService.exportLearningExcel(payload.trainingId);
+        break;
+      case "exportSatisfactionExcel":
+        responseData = ExportService.exportSatisfactionExcel(payload.trainingId);
+        break;
 
       // ── Setup & Admin ──
       case "setupSpreadsheet":
