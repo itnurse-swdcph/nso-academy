@@ -1,13 +1,25 @@
 /**
  * dashboard.js — Module 4.4: Approval & Analytics Dashboard
+ *
+ * โครงสร้างใหม่: แบ่งเป็น 3 แท็บ
+ *   1. approval     — การอนุมัติผู้เข้าอบรม (โค้ดเดิม ไม่แก้ไข logic)
+ *   2. learning     — วิเคราะห์ผลการเรียนรู้ (Pre/Post test) + Export (API.exportLearningExcel)
+ *   3. satisfaction — วิเคราะห์ความพึงพอใจ (ไม่ระบุตัวตน) + Export (API.exportSatisfactionExcel)
+ *
+ * Backend (GAS) ที่รองรับแล้ว:
+ *   - AnalyticsService.getTrainingAnalytics() ส่ง individualResults และ satisfactionResponses (anonymized) มาด้วย
+ *   - ExportService.exportLearningExcel() / exportSatisfactionExcel() คำนวณ + บันทึก snapshot ลงชีตใหม่
+ *     (LearningExport / SatisfactionExport) แยกจากชีตข้อมูลหลัก เพื่อไม่ให้ข้อมูลเดิมสูญหายหรือถูกทับซ้อน
+ *   - การ Export ความพึงพอใจถูกสุ่มลำดับ (shuffle) และตัดชื่อ/ID ผู้ตอบออกตั้งแต่ฝั่งเซิร์ฟเวอร์
  */
 
 const DashboardPage = {
   _trainingId: null,
   _analyticsData: null,
   _registrations: [],
-  _activeTab: 'approval', // 'approval' or 'analytics'
+  _activeTab: 'approval', // 'approval' | 'learning' | 'satisfaction'
   _charts: {}, // to keep chart instances for cleanup
+  _shuffledSatisfaction: null, // cached anonymized + shuffled satisfaction rows
 
   async render(container, params) {
     const unlockInfo = Utils.storage.get('mgmt_unlock');
@@ -30,6 +42,8 @@ const DashboardPage = {
     }
 
     this._trainingId = paramId || (unlockInfo ? unlockInfo.trainingId : null);
+    this._activeTab = 'approval';
+    this._shuffledSatisfaction = null;
 
     container.innerHTML = `
       <div class="animate-fade-in">
@@ -40,7 +54,6 @@ const DashboardPage = {
           </div>
           <div style="display:flex; gap: var(--space-2);">
             <button class="btn btn-outline-navy btn-sm" id="dashboardBackBtn"><i class="fa-solid fa-arrow-left"></i> เมนูจัดการ</button>
-            <button class="btn btn-outline-teal btn-sm" id="exportExcelBtn"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
           </div>
         </div>
 
@@ -48,10 +61,11 @@ const DashboardPage = {
         <div class="tab-container" style="margin-bottom: var(--space-6);">
           <div class="tabs">
             <button class="tab-btn active" data-tab="approval"><i class="fa-solid fa-square-check"></i> การอนุมัติผู้เข้าอบรม</button>
-            <button class="tab-btn" data-tab="analytics"><i class="fa-solid fa-chart-column"></i> วิเคราะห์ผลการเรียนรู้</button>
+            <button class="tab-btn" data-tab="learning"><i class="fa-solid fa-chart-column"></i> วิเคราะห์ผลการเรียนรู้</button>
+            <button class="tab-btn" data-tab="satisfaction"><i class="fa-solid fa-star"></i> วิเคราะห์ความพึงพอใจ</button>
           </div>
         </div>
-        
+
         <!-- Skeleton loading wrapper -->
         <div id="dashboardContent">
           <div class="page-loader">
@@ -67,13 +81,11 @@ const DashboardPage = {
       Router.navigate(`/manage`);
     });
 
-    document.getElementById('exportExcelBtn').addEventListener('click', () => this._handleExportExcel());
-
     container.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        this._activeTab = e.target.dataset.tab;
+        e.currentTarget.classList.add('active');
+        this._activeTab = e.currentTarget.dataset.tab;
         this._renderActiveTab();
       });
     });
@@ -103,8 +115,11 @@ const DashboardPage = {
         passCount: 0,
         failCount: 0,
         satisfactionAvg: 0,
-        satisfactionDetails: []
+        satisfactionDetails: [],
+        individualResults: [],
+        satisfactionResponses: []
       };
+      this._shuffledSatisfaction = null;
 
       this._renderActiveTab();
 
@@ -123,10 +138,16 @@ const DashboardPage = {
 
     if (this._activeTab === 'approval') {
       this._renderApprovalTab(contentEl);
+    } else if (this._activeTab === 'learning') {
+      this._renderLearningTab(contentEl);
     } else {
-      this._renderAnalyticsTab(contentEl);
+      this._renderSatisfactionTab(contentEl);
     }
   },
+
+  // ════════════════════════════════════════════════════════════
+  // ส่วนที่ 1: การอนุมัติผู้เข้าอบรม (เดิม — ไม่เปลี่ยนแปลง logic)
+  // ════════════════════════════════════════════════════════════
 
   _renderApprovalTab(container) {
     const pending = this._registrations.filter(r => r.status === 'PENDING' || !r.status);
@@ -273,11 +294,16 @@ const DashboardPage = {
     });
   },
 
-  _renderAnalyticsTab(container) {
+  // ════════════════════════════════════════════════════════════
+  // ส่วนที่ 2: วิเคราะห์ผลการเรียนรู้ (Learning Analytics)
+  // ════════════════════════════════════════════════════════════
+
+  _renderLearningTab(container) {
     const data = this._analyticsData;
+    const individuals = data.individualResults || [];
 
     container.innerHTML = `
-      <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+      <div class="grid grid-3" style="margin-bottom: var(--space-6);">
         <div class="stat-card">
           <div class="stat-icon navy"><i class="fa-solid fa-pen-to-square"></i></div>
           <div class="stat-info">
@@ -296,14 +322,7 @@ const DashboardPage = {
           <div class="stat-icon success">📈</div>
           <div class="stat-info">
             <div class="stat-value">+${data.improvementPercent ? data.improvementPercent.toFixed(1) : '0.0'}%</div>
-            <div class="stat-label">การพัฒนาความรู้</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon warning"><i class="fa-solid fa-star"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">${data.satisfactionAvg ? data.satisfactionAvg.toFixed(2) : '0.0'}</div>
-            <div class="stat-label">ความพึงพอใจเฉลี่ย</div>
+            <div class="stat-label">ร้อยละการพัฒนาความรู้</div>
           </div>
         </div>
       </div>
@@ -320,7 +339,7 @@ const DashboardPage = {
             </div>
           </div>
         </div>
-        
+
         <div class="card">
           <div class="card-header">
             <div class="card-title">🍰 สัดส่วนผลการประเมิน (ผ่าน / ไม่ผ่านเกณฑ์)</div>
@@ -333,10 +352,126 @@ const DashboardPage = {
         </div>
       </div>
 
-      <!-- Satisfaction Summary -->
+      <!-- Individual Detail Table -->
       <div class="card">
+        <div class="card-header" style="flex-wrap: wrap; gap: var(--space-4);">
+          <div class="card-title"><i class="fa-solid fa-table-list"></i> รายละเอียดรายบุคคล (Pre-test / Post-test)</div>
+          <button class="btn btn-outline-teal btn-sm" id="exportLearningBtn"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>ชื่อ-นามสกุล</th>
+                  <th style="text-align:center;">คะแนน Pre-test</th>
+                  <th style="text-align:center;">คะแนน Post-test</th>
+                  <th style="text-align:center;">ผลการประเมิน</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this._renderLearningTableRows(individuals)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('exportLearningBtn').addEventListener('click', () => this._handleExportLearning());
+
+    // Render Charts after DOM injection
+    setTimeout(() => {
+      this._renderCharts(data);
+    }, 50);
+  },
+
+  _renderLearningTableRows(individuals) {
+    if (!individuals || individuals.length === 0) {
+      return `<tr><td colspan="4" style="text-align:center; color: var(--gray-400); padding: var(--space-8);">ยังไม่มีข้อมูลรายบุคคล (รอข้อมูลจากระบบ Pre/Post-test)</td></tr>`;
+    }
+
+    return individuals.map(p => {
+      const passed = !!p.passed;
+      const badge = passed
+        ? '<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> ผ่านเกณฑ์</span>'
+        : '<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> ไม่ผ่านเกณฑ์</span>';
+
+      return `
+        <tr>
+          <td><strong>${p.fullName || '-'}</strong></td>
+          <td style="text-align:center;">${p.preScore ?? '-'}</td>
+          <td style="text-align:center;">${p.postScore ?? '-'}</td>
+          <td style="text-align:center;">${badge}</td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  async _handleExportLearning() {
+    try {
+      UI.toast('กำลังดึงข้อมูลเพื่อส่งออก...', 'info');
+      const rows = await API.exportLearningExcel(this._trainingId);
+
+      if (!rows || rows.length === 0) {
+        UI.warning('ไม่มีข้อมูลผลการเรียนรู้สำหรับการ Export');
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Learning Analytics");
+      XLSX.writeFile(workbook, `ผลการเรียนรู้_${this._trainingId}.xlsx`);
+      UI.success('ส่งออกข้อมูลผลการเรียนรู้สำเร็จ');
+    } catch (err) {
+      UI.error('การส่งออกล้มเหลว: ' + err.message);
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // ส่วนที่ 3: วิเคราะห์ความพึงพอใจ (Satisfaction Analytics — ไม่ระบุตัวตน)
+  // ════════════════════════════════════════════════════════════
+
+  _renderSatisfactionTab(container) {
+    const data = this._analyticsData;
+    const anonRows = this._getAnonymizedSatisfaction();
+
+    container.innerHTML = `
+      <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+        <div class="stat-card">
+          <div class="stat-icon warning"><i class="fa-solid fa-star"></i></div>
+          <div class="stat-info">
+            <div class="stat-value">${data.satisfactionAvg ? data.satisfactionAvg.toFixed(2) : '0.0'}</div>
+            <div class="stat-label">ความพึงพอใจเฉลี่ยรวม (เต็ม 5)</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon navy">👥</div>
+          <div class="stat-info">
+            <div class="stat-value">${anonRows.length}</div>
+            <div class="stat-label">จำนวนผู้ตอบแบบประเมิน</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon teal"><i class="fa-solid fa-list-check"></i></div>
+          <div class="stat-info">
+            <div class="stat-value">${(data.satisfactionDetails || []).length}</div>
+            <div class="stat-label">จำนวนหัวข้อประเมิน</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon success"><i class="fa-solid fa-shield-halved"></i></div>
+          <div class="stat-info">
+            <div class="stat-value">ไม่ระบุชื่อ</div>
+            <div class="stat-label">รูปแบบข้อมูลตาราง</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-question average -->
+      <div class="card" style="margin-bottom: var(--space-6);">
         <div class="card-header">
-          <div class="card-title"><i class="fa-solid fa-star"></i> สรุปผลความพึงพอใจแยกตามหัวข้อ</div>
+          <div class="card-title"><i class="fa-solid fa-star"></i> สรุปผลความพึงพอใจแยกตามหัวข้อ (6 หัวข้อประเมิน)</div>
         </div>
         <div class="card-body">
           <div class="table-responsive">
@@ -355,12 +490,83 @@ const DashboardPage = {
           </div>
         </div>
       </div>
+
+      <!-- Anonymous individual table -->
+      <div class="card">
+        <div class="card-header" style="flex-wrap: wrap; gap: var(--space-4);">
+          <div>
+            <div class="card-title"><i class="fa-solid fa-user-secret"></i> แจกแจงคะแนนรายบุคคล (ไม่ระบุตัวตน)</div>
+            <div class="card-subtitle">เรียงลำดับแบบสุ่ม ไม่สามารถย้อนกลับไปหาผู้ตอบรายใดได้</div>
+          </div>
+          <button class="btn btn-outline-teal btn-sm" id="exportSatisfactionBtn"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>ลำดับ</th>
+                  ${(data.satisfactionDetails || []).map((_, i) => `<th style="text-align:center;">ข้อ ${i + 1}</th>`).join('')}
+                  <th style="text-align:center;">เฉลี่ย</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this._renderAnonymousTableRows(anonRows)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     `;
 
-    // Render Charts after DOM injection
-    setTimeout(() => {
-      this._renderCharts(data);
-    }, 50);
+    document.getElementById('exportSatisfactionBtn').addEventListener('click', () => this._handleExportSatisfaction());
+  },
+
+  /**
+   * สร้างข้อมูลความพึงพอใจแบบไม่ระบุตัวตน:
+   *  1. ตัดทุกฟิลด์ที่อาจเชื่อมโยงถึงตัวบุคคล (ชื่อ, regId, email ฯลฯ) ออกทั้งหมด เหลือเฉพาะ answers
+   *  2. สลับลำดับ (Fisher–Yates shuffle) เพื่อไม่ให้ลำดับเดิมสามารถ map กลับไปหาผู้ตอบในฐานข้อมูลได้
+   *  3. ใส่ลำดับใหม่ "คนที่ N" ทับลำดับเดิม
+   * ผลลัพธ์จะถูก cache ไว้ระหว่างที่ยังอยู่ในหน้านี้ เพื่อไม่ให้ลำดับเปลี่ยนไปมาเวลาสลับแท็บ
+   */
+  _getAnonymizedSatisfaction() {
+    if (this._shuffledSatisfaction) return this._shuffledSatisfaction;
+
+    const raw = this._analyticsData?.satisfactionResponses || [];
+
+    // เก็บเฉพาะคะแนนคำตอบ (answers) — ตัด field อื่น ๆ ที่อาจระบุตัวตนทิ้งทั้งหมด
+    const onlyScores = raw.map(r => ({ answers: Array.isArray(r.answers) ? [...r.answers] : [] }));
+
+    // Fisher–Yates shuffle
+    for (let i = onlyScores.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [onlyScores[i], onlyScores[j]] = [onlyScores[j], onlyScores[i]];
+    }
+
+    this._shuffledSatisfaction = onlyScores.map((r, idx) => ({
+      label: `คนที่ ${idx + 1}`,
+      answers: r.answers
+    }));
+
+    return this._shuffledSatisfaction;
+  },
+
+  _renderAnonymousTableRows(rows) {
+    if (!rows || rows.length === 0) {
+      return `<tr><td colspan="8" style="text-align:center; color: var(--gray-400); padding: var(--space-8);">ยังไม่มีข้อมูลแบบประเมินความพึงพอใจ</td></tr>`;
+    }
+
+    return rows.map(r => {
+      const answers = r.answers || [];
+      const avg = answers.length ? (answers.reduce((s, v) => s + (Number(v) || 0), 0) / answers.length) : 0;
+      return `
+        <tr>
+          <td><strong>${r.label}</strong></td>
+          ${answers.map(a => `<td style="text-align:center;">${a}</td>`).join('')}
+          <td style="text-align:center; font-weight:var(--fw-bold); color:var(--navy-600);">${avg.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
   },
 
   _renderSatisfactionRows(details) {
@@ -392,6 +598,30 @@ const DashboardPage = {
       `;
     }).join('');
   },
+
+  async _handleExportSatisfaction() {
+    try {
+      UI.toast('กำลังดึงข้อมูลเพื่อส่งออก...', 'info');
+      const rows = await API.exportSatisfactionExcel(this._trainingId);
+
+      if (!rows || rows.length === 0) {
+        UI.warning('ไม่มีข้อมูลความพึงพอใจสำหรับการ Export');
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Satisfaction Analytics");
+      XLSX.writeFile(workbook, `ความพึงพอใจ_ไม่ระบุชื่อ_${this._trainingId}.xlsx`);
+      UI.success('ส่งออกข้อมูลความพึงพอใจ (ไม่ระบุชื่อ) สำเร็จ');
+    } catch (err) {
+      UI.error('การส่งออกล้มเหลว: ' + err.message);
+    }
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // Charts (ใช้ในแท็บวิเคราะห์ผลการเรียนรู้)
+  // ════════════════════════════════════════════════════════════
 
   _renderCharts(data) {
     const scoreCtx = document.getElementById('scoreChart');
@@ -453,29 +683,6 @@ const DashboardPage = {
     }
   },
 
-  async _handleExportExcel() {
-    try {
-      UI.toast('กำลังดึงข้อมูลเพื่อส่งออก...', 'info');
-      // Create and download Excel sheet using SheetJS Client-side or API endpoint
-      const rawData = await API.exportAnalyticsExcel(this._trainingId);
-      
-      // RawData is expected to be an array of objects
-      if (!rawData || rawData.length === 0) {
-        UI.warning('ไม่มีข้อมูลสำหรับการ Export');
-        return;
-      }
-
-      const worksheet = XLSX.utils.json_to_sheet(rawData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Analytics Data");
-      
-      XLSX.writeFile(workbook, `Training_Analytics_${this._trainingId}.xlsx`);
-      UI.success('ส่งออกไฟล์ Excel สำเร็จ');
-    } catch (err) {
-      UI.error('การส่งออกล้มเหลว: ' + err.message);
-    }
-  },
-
   _cleanupCharts() {
     Object.keys(this._charts).forEach(key => {
       if (this._charts[key] && typeof this._charts[key].destroy === 'function') {
@@ -490,5 +697,6 @@ const DashboardPage = {
     this._trainingId = null;
     this._analyticsData = null;
     this._registrations = [];
+    this._shuffledSatisfaction = null;
   }
 };
