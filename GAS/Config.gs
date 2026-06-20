@@ -22,6 +22,11 @@ const CONFIG = {
     SATISFACTION_FORMS: "SatisfactionForms",
     SATISFACTION_RESPONSES: "SatisfactionResponses",
     ANALYTICS: "Analytics",
-    CONFIG: "Config"
+    CONFIG: "Config",
+
+    // Export snapshot sheets — สร้างแยกใหม่เสมอ ห้ามเขียนทับชีตข้อมูลหลัก
+    // เพื่อป้องกันข้อมูลเดิม (Registrations/Answers/SatisfactionResponses) สูญหายหรือถูกทับซ้อน
+    LEARNING_EXPORT: "LearningExport",
+    SATISFACTION_EXPORT: "SatisfactionExport"
   }
 };
