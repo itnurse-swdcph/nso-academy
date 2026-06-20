@@ -15,6 +15,7 @@
 
 const DashboardPage = {
   _trainingId: null,
+  _trainingTitle: null,
   _analyticsData: null,
   _registrations: [],
   _activeTab: 'approval', // 'approval' | 'learning' | 'satisfaction'
@@ -42,6 +43,7 @@ const DashboardPage = {
     }
 
     this._trainingId = paramId || (unlockInfo ? unlockInfo.trainingId : null);
+    this._trainingTitle = null;
     this._activeTab = 'approval';
     this._shuffledSatisfaction = null;
 
@@ -50,7 +52,8 @@ const DashboardPage = {
         <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap: var(--space-4);">
           <div>
             <h1 class="page-title">แดชบอร์ด & การวิเคราะห์</h1>
-            <p class="page-subtitle">หัวข้อการอบรมรหัส: <strong>${this._trainingId}</strong></p>
+            <p class="page-subtitle" id="dashboardTrainingTitle" style="font-size:var(--text-base); color:var(--gray-700);">กำลังโหลด...</p>
+            <p class="page-subtitle">รหัสหลักสูตร: <strong>${this._trainingId}</strong></p>
           </div>
           <div style="display:flex; gap: var(--space-2);">
             <button class="btn btn-outline-navy btn-sm" id="dashboardBackBtn"><i class="fa-solid fa-arrow-left"></i> เมนูจัดการ</button>
@@ -98,11 +101,23 @@ const DashboardPage = {
     if (!contentEl) return;
 
     try {
-      // Load both registrations and analytics data in parallel
-      const [regs, analytics] = await Promise.all([
+      // Load registrations, analytics และ training title แบบ parallel
+      const [regs, analytics, trainingDetail] = await Promise.all([
         API.getRegistrationsByTraining(this._trainingId),
-        API.getAnalytics(this._trainingId)
+        API.getAnalytics(this._trainingId),
+        API.getTrainingById(this._trainingId).catch(() => null)
       ]);
+
+      // แสดงชื่อหัวข้ออบรมใน header ทันทีที่ดึงข้อมูลได้
+      this._trainingTitle = trainingDetail?.title || trainingDetail?.name || null;
+      const titleEl = document.getElementById('dashboardTrainingTitle');
+      if (titleEl) {
+        titleEl.textContent = this._trainingTitle
+          ? `หัวข้อการอบรม: ${this._trainingTitle}`
+          : `หัวข้อการอบรมรหัส: ${this._trainingId}`;
+        titleEl.style.fontWeight = this._trainingTitle ? 'var(--fw-semi)' : '';
+        titleEl.style.color = this._trainingTitle ? 'var(--navy-700)' : '';
+      }
 
       this._registrations = regs || [];
       this._analyticsData = analytics || {
@@ -712,6 +727,7 @@ const DashboardPage = {
   cleanup() {
     this._cleanupCharts();
     this._trainingId = null;
+    this._trainingTitle = null;
     this._analyticsData = null;
     this._registrations = [];
     this._shuffledSatisfaction = null;
