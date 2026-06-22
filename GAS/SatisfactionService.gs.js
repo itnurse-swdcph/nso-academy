@@ -60,22 +60,27 @@ const SatisfactionService = {
 
   /**
    * ส่งผลตอบประเมินความพึงพอใจ
+   * payload = { trainingId, participantId, position, responses: [{ formQuestionId, ratingValue, textValue }] }
+   * *** BUG FIX: บันทึก position (ตำแหน่ง) ลงทุกแถวของ response เพื่อให้ AnalyticsService ดึงได้ ***
    */
   submitResponse: function(payload) {
-    // payload = { trainingId, participantId, responses: [{ formQuestionId, ratingValue, textValue }] }
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(5000)) throw new Error("ส่งแบบประเมินล้มเหลวเนื่องจากระบบประมวลผลอยู่");
 
     try {
+      const submittedAt = new Date();
+      const position = payload.position || "";
+
       const recordsToInsert = payload.responses.map(res => {
         return {
-          responseId: `SFR-${new Date().getTime()}-${Math.floor(Math.random()*1000)}`,
+          responseId: `SFR-${submittedAt.getTime()}-${Math.floor(Math.random()*1000)}`,
           formQuestionId: res.formQuestionId,
           trainingId: payload.trainingId,
-          participantId: payload.participantId,
+          participantId: payload.participantId || "",
+          position: position,
           ratingValue: res.ratingValue !== undefined ? Number(res.ratingValue) : "",
           textValue: res.textValue || "",
-          submittedAt: new Date()
+          submittedAt: submittedAt
         };
       });
 
