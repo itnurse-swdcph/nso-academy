@@ -92,14 +92,19 @@ const ExportService = {
   /**
    * Export เฉพาะข้อมูลความพึงพอใจรายบุคคลแบบไม่ระบุตัวตนของหัวข้ออบรมหนึ่ง ๆ
    * - สลับลำดับ (shuffle) ก่อนบันทึก/ส่งออก เพื่อไม่ให้ย้อนกลับไปหาผู้ตอบจริงได้
-   * - ไม่มีฟิลด์ participantId / fullName ติดไปกับข้อมูลเลยตั้งแต่ AnalyticsService
+   * - ไม่มีฟิลด์ participantId / fullName ติดไปกับข้อมูลเลย
    * - บันทึก snapshot ลงชีต SatisfactionExport (สร้างอัตโนมัติหากยังไม่มี)
+   * *** BUG FIX: เพิ่มคอลัมน์ "ตำแหน่ง" และ "ข้อเสนอแนะ" ในผลลัพธ์ Excel ***
    */
   exportSatisfactionExcel: function(trainingId) {
     const analytics = AnalyticsService.getTrainingAnalytics(trainingId);
-    const responses = (analytics.satisfactionResponses || []).map(r => ({ answers: [...(r.answers || [])] }));
+    const responses = (analytics.satisfactionResponses || []).map(r => ({
+      answers: [...(r.answers || [])],
+      position: r.position || '',
+      suggestions: r.suggestions || ''
+    }));
 
-    // Fisher–Yates shuffle ทำฝั่งเซิร์ฟเวอร์อีกครั้งก่อนบันทึก/ส่งออก (เป็นอิสระจากลำดับการ shuffle ฝั่งหน้าเว็บ)
+    // Fisher–Yates shuffle ฝั่งเซิร์ฟเวอร์ (ครอบคลุม position และ suggestions ด้วย)
     for (let i = responses.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       const tmp = responses[i];
@@ -114,8 +119,10 @@ const ExportService = {
       return {
         trainingId: trainingId,
         anonLabel: `คนที่ ${idx + 1}`,
+        position: r.position,
         answersJson: JSON.stringify(r.answers),
         avgScore: avg ? avg.toFixed(2) : "",
+        suggestions: r.suggestions,
         exportedAt: now
       };
     });
@@ -125,16 +132,21 @@ const ExportService = {
       SheetService.insertRecords(CONFIG.SHEETS.SATISFACTION_EXPORT, rows);
     }
 
-    // คืนข้อมูลแบบ flat ให้ client พร้อมสำหรับสร้างไฟล์ Excel (ข้อ 1 - ข้อ N + เฉลี่ย) — ไม่มีชื่อ/ID ผู้ตอบ
+    // คืนข้อมูลแบบ flat ให้ client: ลำดับ, ตำแหน่ง, ข้อ 1 - ข้อ N, คะแนนรวม, ข้อเสนอแนะ
     const questionCount = responses.reduce((max, r) => Math.max(max, r.answers.length), 0);
     return responses.map((r, idx) => {
-      const obj = { "ลำดับ": `คนที่ ${idx + 1}` };
+      const obj = {
+        "ลำดับ": `คนที่ ${idx + 1}`,
+        "ตำแหน่ง": r.position || "-"
+      };
       for (let i = 0; i < questionCount; i++) {
         obj[`ข้อ ${i + 1}`] = r.answers[i] !== null && r.answers[i] !== undefined ? r.answers[i] : "";
       }
       const validAnswers = r.answers.filter(v => v !== null && v !== undefined && !isNaN(v));
-      const avg = validAnswers.length > 0 ? (validAnswers.reduce((s, v) => s + v, 0) / validAnswers.length) : 0;
-      obj["เฉลี่ย"] = avg ? avg.toFixed(2) : "";
+      const total = validAnswers.length > 0 ? validAnswers.reduce((s, v) => s + Number(v), 0) : 0;
+      obj["คะแนนรวม"] = validAnswers.length > 0 ? total : "";
+      obj["เฉลี่ย"] = validAnswers.length > 0 ? (total / validAnswers.length).toFixed(2) : "";
+      obj["ข้อเสนอแนะ"] = r.suggestions || "-";
       return obj;
     });
   }
