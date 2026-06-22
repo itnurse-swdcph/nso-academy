@@ -14,12 +14,12 @@ const SCHEMAS = {
   "Questions": ["questionId", "trainingId", "testType", "order", "questionText", "imageUrl", "optionA", "optionB", "optionC", "optionD", "correctAnswer", "score"],
   "Answers": ["answerId", "questionId", "trainingId", "testType", "participantId", "selectedAnswer", "isCorrect", "score", "submittedAt"],
   "SatisfactionForms": ["formQuestionId", "trainingId", "order", "questionText", "questionType", "isRequired"],
-  "SatisfactionResponses": ["responseId", "formQuestionId", "trainingId", "participantId", "ratingValue", "textValue", "submittedAt"],
+  "SatisfactionResponses": ["responseId", "formQuestionId", "trainingId", "participantId", "position", "ratingValue", "textValue", "submittedAt"],
   "Analytics": ["analyticsId", "trainingId", "totalRegistrations", "approvedCount", "preTestAvg", "postTestAvg", "improvementPercent", "satisfactionAvg", "calculatedAt"],
   "Config": ["key", "value", "description"],
   // Snapshot sheets ที่ใช้เก็บผลลัพธ์ Export ล่าสุดของแต่ละหัวข้ออบรม (สร้างอัตโนมัติ ไม่ทับชีตข้อมูลหลัก)
   "LearningExport": ["trainingId", "fullName", "preScore", "postScore", "improvementPercent", "passed", "exportedAt"],
-  "SatisfactionExport": ["trainingId", "anonLabel", "answersJson", "avgScore", "exportedAt"]
+  "SatisfactionExport": ["trainingId", "anonLabel", "position", "answersJson", "avgScore", "suggestions", "exportedAt"]
 };
 
 const SheetService = {
