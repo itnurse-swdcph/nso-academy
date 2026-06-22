@@ -118,27 +118,64 @@ const AnalyticsService = {
     const satisfactionAvg = overallSatCount > 0 ? (overallSatSum / overallSatCount) : 0;
 
     // 3.1 แจกแจงคะแนนรายบุคคลแบบไม่ระบุตัวตน (สำหรับตาราง "วิเคราะห์ความพึงพอใจ")
-    // จัดกลุ่มคำตอบตาม participantId ภายในฟังก์ชันนี้เท่านั้น แล้วตัด participantId ทิ้งก่อนส่งออกไปยัง client
-    // เรียงคำตอบตามลำดับคำถาม (order) ของแบบฟอร์ม เพื่อให้ตรงคอลัมน์ "ข้อ 1 - ข้อ N" เสมอ
+    // *** BUG FIX: เปลี่ยนจาก group ตาม participantId → group ตาม submittedAt ***
+    // เหตุผล: ผู้ตอบที่ไม่ได้ login จะมี participantId = null/blank ทำให้ทุกแถวถูก merge
+    //         เป็นคนเดียวกัน วิธีที่ถูกต้องคือใช้ submittedAt timestamp เพราะทุกคำตอบของ
+    //         1 คนจะถูกบันทึกด้วย timestamp เดียวกัน
+    // ตัด participantId ทิ้งก่อนส่งออก เหลือเฉพาะ answers, position, suggestions
     const ratingForms = satisfactionForms
       .filter(f => f.questionType === "RATING")
       .sort((a, b) => Number(a.order) - Number(b.order));
 
-    const respondentIds = [...new Set(
-      satisfactionResponses
-        .filter(r => r.ratingValue !== "" && r.ratingValue !== null && r.ratingValue !== undefined)
-        .map(r => r.participantId)
-    )];
+    // หา question ประเภท TEXT (ข้อเสนอแนะ) และ POSITION/CHOICE (ตำแหน่ง)
+    const textForm = satisfactionForms.find(f => f.questionType === "TEXT");
+    const positionFormAny = satisfactionForms.find(f =>
+      f.questionType !== "RATING" && f.questionType !== "TEXT" &&
+      String(f.questionText || "").indexOf("ตำแหน่ง") !== -1
+    );
 
-    const satisfactionResponsesAnon = respondentIds.map(pId => {
-      const personResponses = satisfactionResponses.filter(r => r.participantId === pId);
-      const orderedAnswers = ratingForms.map(f => {
-        const found = personResponses.find(r => r.formQuestionId === f.formQuestionId);
+    // จัดกลุ่มทุก response ตาม submittedAt timestamp (ISO string key)
+    const submissionMap = {};
+    satisfactionResponses.forEach(function(r) {
+      var key = String(r.submittedAt || "").trim();
+      if (!key) return;
+      if (!submissionMap[key]) submissionMap[key] = [];
+      submissionMap[key].push(r);
+    });
+
+    // เรียงลำดับ timestamp จากเก่าไปใหม่
+    const submissionKeys = Object.keys(submissionMap).sort();
+
+    const satisfactionResponsesAnon = submissionKeys.map(function(key) {
+      const personResponses = submissionMap[key];
+
+      // คะแนน RATING ข้อ 1 - N
+      const orderedAnswers = ratingForms.map(function(f) {
+        const found = personResponses.find(function(r) { return r.formQuestionId === f.formQuestionId; });
         const v = found ? Number(found.ratingValue) : null;
-        return isNaN(v) ? null : v;
+        return (v === null || isNaN(v)) ? null : v;
       });
-      // ไม่แนบ participantId / fullName ใด ๆ — มีเฉพาะ array คะแนนคำตอบเท่านั้น
-      return { answers: orderedAnswers };
+
+      // ตำแหน่ง: ดูจาก textValue ของ question ประเภท POSITION/CHOICE/SELECT ที่มีคำว่า "ตำแหน่ง"
+      let position = "";
+      if (positionFormAny) {
+        const posResp = personResponses.find(function(r) {
+          return r.formQuestionId === positionFormAny.formQuestionId;
+        });
+        if (posResp) position = String(posResp.textValue || posResp.ratingValue || "").trim();
+      }
+
+      // ข้อเสนอแนะ: ดูจาก textValue ของ TEXT question
+      let suggestions = "";
+      if (textForm) {
+        const textResp = personResponses.find(function(r) {
+          return r.formQuestionId === textForm.formQuestionId;
+        });
+        if (textResp) suggestions = String(textResp.textValue || "").trim();
+      }
+
+      // ไม่แนบ participantId / fullName / submittedAt — ส่งเฉพาะ answers, position (ชื่อตำแหน่ง), suggestions
+      return { answers: orderedAnswers, position: position, suggestions: suggestions };
     });
 
     return {
