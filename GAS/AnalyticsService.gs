@@ -141,12 +141,8 @@ const AnalyticsService = {
     // จำนวนคำถามทั้งหมดต่อคน (RATING + TEXT + ทุก type)
     const totalQuestionsPerPerson = satisfactionForms.length;
 
-    // หา formQuestionId ของ TEXT (ข้อเสนอแนะ) และ POSITION/CHOICE (ตำแหน่ง) ถ้ามี
+    // หา formQuestionId ของ TEXT (ข้อเสนอแนะ) — position อ่านจากคอลัมน์ position ใน sheet โดยตรง
     const textForm = satisfactionForms.find(f => f.questionType === "TEXT");
-    const positionFormAny = satisfactionForms.find(f =>
-      f.questionType !== "RATING" && f.questionType !== "TEXT" &&
-      String(f.questionText || "").indexOf("ตำแหน่ง") !== -1
-    );
 
     const satisfactionResponsesAnon = [];
 
@@ -167,12 +163,9 @@ const AnalyticsService = {
           return (v === null || isNaN(v)) ? null : v;
         });
 
-        // ตำแหน่ง: textValue ของ question ประเภท POSITION/CHOICE/SELECT
-        var position = "";
-        if (positionFormAny) {
-          var posResp = block.find(function(r) { return r.formQuestionId === positionFormAny.formQuestionId; });
-          if (posResp) position = String(posResp.textValue || posResp.ratingValue || "").trim();
-        }
+        // ตำแหน่ง: อ่านจากคอลัมน์ position ที่ SatisfactionService บันทึกไว้ทุกแถว
+        // (แถวแรกของ block ก็พอ เพราะทุกแถวของคนเดียวกันมี position เดียวกัน)
+        var position = String(block[0] ? (block[0].position || "") : "").trim();
 
         // ข้อเสนอแนะ: textValue ของ TEXT question
         var suggestions = "";
