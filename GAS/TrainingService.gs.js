@@ -27,20 +27,10 @@ const TrainingService = {
         }
 
         // ตรวจสอบว่ามีรอบที่ยังเปิดรับสมัครอยู่หรือไม่
-        // กฎ: วันก่อนวันอบรม → เปิดรับสมัคร
-        //      วันอบรม (วันนี้) และเวลา < 12:00 น. → ยังเปิดรับสมัคร
-        //      วันอบรม (วันนี้) และเวลา >= 12:00 น. → ปิดรับสมัครแล้ว
-        //      วันหลังวันอบรม → ปิดรับสมัครแล้ว
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const isBeforeNoon = (currentHour < 12) || (currentHour === 12 && currentMinute === 0);
-
+        // กฎ: วันอบรม (sessionDate) และก่อนหน้า → เปิด, วันถัดไป → ปิด
         const hasActiveSessions = trainSessions.some(s => {
           const dateStr = String(s.sessionDate || "").split('~')[0].trim().slice(0, 10);
-          if (dateStr > todayStr) return true;                    // วันอนาคต → เปิด
-          if (dateStr === todayStr) return isBeforeNoon;          // วันนี้ → เปิดถึง 12:00 น. เท่านั้น
-          return false;                                           // วันผ่านมาแล้ว → ปิด
+          return dateStr >= todayStr; // ปิดวันถัดจากวันอบรม
         });
 
         return {
