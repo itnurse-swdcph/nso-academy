@@ -268,6 +268,9 @@ const RegisterPage = {
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     return trainings.filter(t => {
+      // ใช้ hasActiveSessions จาก GAS ก่อน (คำนวณแล้วด้วย timezone ถูกต้อง)
+      if (typeof t.hasActiveSessions === 'boolean') return t.hasActiveSessions;
+      // fallback: คำนวณจาก sessions ที่ส่งมา
       const sessions = t.sessions || [];
       if (!sessions.length) return true;
       return sessions.some(s => {
