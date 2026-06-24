@@ -246,15 +246,11 @@ const RegisterPage = {
    */
   _filterActiveSessions(sessions) {
     if (!Array.isArray(sessions)) return [];
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const isBeforeNoon = now.getHours() < 12; // ก่อน 12:00 น. = ยังเปิดรับสมัคร
+    const todayStr = new Date().toISOString().slice(0, 10);
     return sessions.filter(s => {
       const sessionDateStr = (s.sessionDate || s.date || '').slice(0, 10);
-      if (!sessionDateStr) return true;          // ไม่มีวันที่ → แสดงไว้ก่อน
-      if (sessionDateStr > todayStr) return true; // วันอนาคต → เปิด
-      if (sessionDateStr === todayStr) return isBeforeNoon; // วันนี้ → เปิดถึง 12:00 น.
-      return false;                              // วันผ่านมาแล้ว → ปิด
+      if (!sessionDateStr) return true;
+      return sessionDateStr >= todayStr; // ปิดวันถัดจากวันอบรม
     });
   },
 
@@ -266,18 +262,13 @@ const RegisterPage = {
    */
   _filterActiveTrainings(trainings) {
     if (!Array.isArray(trainings)) return [];
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    const isBeforeNoon = now.getHours() < 12;
+    const todayStr = new Date().toISOString().slice(0, 10);
     return trainings.filter(t => {
       const sessions = t.sessions || [];
-      if (!sessions.length) return true; // ยังไม่โหลด sessions → แสดงไว้ก่อน
+      if (!sessions.length) return true;
       return sessions.some(s => {
         const d = (s.sessionDate || s.date || '').slice(0, 10);
-        if (!d) return true;
-        if (d > todayStr) return true;
-        if (d === todayStr) return isBeforeNoon;
-        return false;
+        return !d || d >= todayStr; // ปิดวันถัดจากวันอบรม
       });
     });
   },
