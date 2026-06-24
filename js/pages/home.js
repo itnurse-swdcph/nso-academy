@@ -108,7 +108,7 @@ const HomePage = {
 
       // วันที่ปัจจุบันสำหรับเปรียบเทียบ
       const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
       // คำนวณหัวข้อที่เปิดรับสมัคร (ใช้ isExpired จาก GAS ถ้ามี)
       const active = trainings.filter(t => {
