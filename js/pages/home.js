@@ -168,17 +168,29 @@ const HomePage = {
       const recentEl = container.querySelector('#recentTrainings');
       if (!recentEl) return;
 
-      if (!trainings.length) {
+      // กรองเฉพาะหัวข้อที่ยังมีรอบเปิดรับสมัคร (hasActiveSessions = true)
+      // หัวข้อที่จบทุกรอบแล้วจะไม่แสดงในหน้าแรก (ยกเว้นหน้าแอดมิน)
+      const visibleTrainings = trainings.filter(t => {
+        if (typeof t.hasActiveSessions === 'boolean') return t.hasActiveSessions;
+        // fallback: ถ้า GAS ไม่ส่ง hasActiveSessions ให้คำนวณจาก sessions
+        const sessions = t.sessions || [];
+        if (sessions.length > 0) {
+          return sessions.some(s => (s.sessionDate || s.date || '').slice(0, 10) >= todayStr);
+        }
+        return t.status === 'ACTIVE';
+      });
+
+      if (!visibleTrainings.length) {
         UI.showEmpty(recentEl, {
           icon: '<i class="fa-solid fa-clipboard-list"></i>',
-          title: 'ยังไม่มีหัวข้ออบรม',
-          desc: 'เริ่มต้นสร้างหัวข้ออบรมใหม่ได้เลย',
-          action: '<a href="#/create" class="btn btn-teal">+ สร้างหัวข้ออบรม</a>'
+          title: 'ไม่มีหัวข้ออบรมที่เปิดรับสมัคร',
+          desc: 'ขณะนี้ยังไม่มีหัวข้ออบรมที่เปิดรับสมัคร',
+          action: ''
         });
         return;
       }
 
-      const recent = trainings.slice(0, 5);
+      const recent = visibleTrainings.slice(0, 5);
       recentEl.innerHTML = `
         <div>
           ${recent.map(t => {
