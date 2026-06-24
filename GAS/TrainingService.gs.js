@@ -26,11 +26,21 @@ const TrainingService = {
           nextDate = sorted[0].sessionDate;
         }
 
-        // ตรวจสอบว่ามีรอบที่ยังไม่ผ่านไป (sessionDate >= วันนี้) อย่างน้อย 1 รอบหรือไม่
-        // ใช้เพื่อแสดงสถานะ "เปิด/ปิด" บน Frontend โดยไม่ต้องกรองข้อมูลออกจากระบบ
+        // ตรวจสอบว่ามีรอบที่ยังเปิดรับสมัครอยู่หรือไม่
+        // กฎ: วันก่อนวันอบรม → เปิดรับสมัคร
+        //      วันอบรม (วันนี้) และเวลา < 12:00 น. → ยังเปิดรับสมัคร
+        //      วันอบรม (วันนี้) และเวลา >= 12:00 น. → ปิดรับสมัครแล้ว
+        //      วันหลังวันอบรม → ปิดรับสมัครแล้ว
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const isBeforeNoon = (currentHour < 12) || (currentHour === 12 && currentMinute === 0);
+
         const hasActiveSessions = trainSessions.some(s => {
           const dateStr = String(s.sessionDate || "").split('~')[0].trim().slice(0, 10);
-          return dateStr >= todayStr;
+          if (dateStr > todayStr) return true;                    // วันอนาคต → เปิด
+          if (dateStr === todayStr) return isBeforeNoon;          // วันนี้ → เปิดถึง 12:00 น. เท่านั้น
+          return false;                                           // วันผ่านมาแล้ว → ปิด
         });
 
         return {
