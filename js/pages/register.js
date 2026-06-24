@@ -246,12 +246,15 @@ const RegisterPage = {
    */
   _filterActiveSessions(sessions) {
     if (!Array.isArray(sessions)) return [];
-    // ตัด time ออก → เหลือแค่ "YYYY-MM-DD" เพื่อเปรียบเทียบวันที่ล้วนๆ
-    const todayStr = new Date().toISOString().slice(0, 10); // "2026-06-19"
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const isBeforeNoon = now.getHours() < 12; // ก่อน 12:00 น. = ยังเปิดรับสมัคร
     return sessions.filter(s => {
       const sessionDateStr = (s.sessionDate || s.date || '').slice(0, 10);
-      if (!sessionDateStr) return true; // ถ้าไม่มีวันที่ ให้แสดงไว้ก่อน
-      return sessionDateStr >= todayStr;
+      if (!sessionDateStr) return true;          // ไม่มีวันที่ → แสดงไว้ก่อน
+      if (sessionDateStr > todayStr) return true; // วันอนาคต → เปิด
+      if (sessionDateStr === todayStr) return isBeforeNoon; // วันนี้ → เปิดถึง 12:00 น.
+      return false;                              // วันผ่านมาแล้ว → ปิด
     });
   },
 
@@ -263,15 +266,18 @@ const RegisterPage = {
    */
   _filterActiveTrainings(trainings) {
     if (!Array.isArray(trainings)) return [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const isBeforeNoon = now.getHours() < 12;
     return trainings.filter(t => {
       const sessions = t.sessions || [];
-      // ถ้า API ไม่ได้ส่ง sessions มาด้วย (มีแค่ sessionCount) ให้แสดงไว้ก่อน
-      // (จะถูก filter อีกครั้งตอนโหลด sessions จริง)
-      if (!sessions.length) return true;
+      if (!sessions.length) return true; // ยังไม่โหลด sessions → แสดงไว้ก่อน
       return sessions.some(s => {
         const d = (s.sessionDate || s.date || '').slice(0, 10);
-        return !d || d >= todayStr;
+        if (!d) return true;
+        if (d > todayStr) return true;
+        if (d === todayStr) return isBeforeNoon;
+        return false;
       });
     });
   },
