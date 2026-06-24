@@ -246,7 +246,10 @@ const RegisterPage = {
    */
   _filterActiveSessions(sessions) {
     if (!Array.isArray(sessions)) return [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // ใช้ local date (timezone ไทย) แทน toISOString() ที่เป็น UTC
+    // เพื่อป้องกัน UTC offset ทำให้วันที่คลาดเคลื่อน (-7 ชั่วโมง)
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     return sessions.filter(s => {
       const sessionDateStr = (s.sessionDate || s.date || '').slice(0, 10);
       if (!sessionDateStr) return true;
@@ -262,13 +265,14 @@ const RegisterPage = {
    */
   _filterActiveTrainings(trainings) {
     if (!Array.isArray(trainings)) return [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     return trainings.filter(t => {
       const sessions = t.sessions || [];
       if (!sessions.length) return true;
       return sessions.some(s => {
         const d = (s.sessionDate || s.date || '').slice(0, 10);
-        return !d || d >= todayStr; // ปิดวันถัดจากวันอบรม
+        return !d || d >= todayStr;
       });
     });
   },
