@@ -80,10 +80,16 @@ const CreateTrainingPage = {
                       min="1" placeholder="เช่น 50">
                   </div>
                 </div>
-                
-                <div class="form-group full-width" style="margin-top: var(--space-4);">
-                  <label class="form-label" for="trainingDescription">รายละเอียดเพิ่มเติม</label>
-                  <textarea id="trainingDescription" class="form-control" rows="4" placeholder="กรอกรายละเอียดเพิ่มเติม เช่น ลิงก์รายละเอียด หรือข้อมูลติดต่อ..." style="resize: vertical; min-height: 80px;"></textarea>
+
+                <div class="form-grid" style="margin-top: var(--space-4);">
+                  <div class="form-group full-width">
+                    <label class="form-label" for="trainingDescription">
+                      รายละเอียดเพิ่มเติม
+                    </label>
+                    <textarea id="trainingDescription" class="form-control" rows="5" maxlength="5000"
+                      placeholder="ระบุรายละเอียดเพิ่มเติม เช่น เงื่อนไขการเข้าร่วม เอกสารที่ต้องเตรียม หรือลิงก์ประกอบการอบรม"></textarea>
+                    <div class="form-hint">ข้อมูลนี้จะแสดงในหน้าลงทะเบียนก่อนผู้เข้าอบรมยืนยันการลงทะเบียน</div>
+                  </div>
                 </div>
               </div>
 
