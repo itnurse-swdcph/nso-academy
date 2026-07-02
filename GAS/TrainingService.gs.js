@@ -96,10 +96,29 @@ const TrainingService = {
         location: payload.location,
         managementCode: managementCode,
         status: "ACTIVE",
-        createdAt: new Date()
+        createdAt: new Date(),
+        description: payload.description || ""
       };
 
       SheetService.insertRecords(CONFIG.SHEETS.TRAININGS, [newTraining]);
+
+      // สร้างชีตใหม่สำหรับรองรับรายชื่อผู้ลงทะเบียนของหัวข้อนั้นๆ อัตโนมัติ
+      try {
+        const db = SheetService.getDb();
+        let sheet = db.getSheetByName(trainingId);
+        if (!sheet) {
+          sheet = db.insertSheet(trainingId);
+          const headers = ["ลำดับ", "ชื่อ-นามสกุล", "ตำแหน่ง", "หน่วยงาน", "สถานะ", "เวลาที่ลงทะเบียน"];
+          sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+          sheet.getRange(1, 1, 1, headers.length)
+            .setFontWeight("bold")
+            .setBackground("#f1f5f9")
+            .setHorizontalAlignment("center");
+          sheet.setFrozenRows(1);
+        }
+      } catch (e) {
+        console.error("Failed to create training-specific sheet tab: ", e);
+      }
 
       // บันทึกรอบจัดอบรม
       if (payload.sessions && payload.sessions.length > 0) {
