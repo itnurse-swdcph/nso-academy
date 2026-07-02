@@ -80,6 +80,11 @@ const CreateTrainingPage = {
                       min="1" placeholder="เช่น 50">
                   </div>
                 </div>
+                
+                <div class="form-group full-width" style="margin-top: var(--space-4);">
+                  <label class="form-label" for="trainingDescription">รายละเอียดเพิ่มเติม</label>
+                  <textarea id="trainingDescription" class="form-control" rows="4" placeholder="กรอกรายละเอียดเพิ่มเติม เช่น ลิงก์รายละเอียด หรือข้อมูลติดต่อ..." style="resize: vertical; min-height: 80px;"></textarea>
+                </div>
               </div>
 
               <div class="form-section">
@@ -280,10 +285,11 @@ const CreateTrainingPage = {
   async _handleSubmit(e) {
     e.preventDefault();
 
-    const title     = document.getElementById('trainingTitle').value.trim();
-    const organizer = document.getElementById('trainingOrganizer').value.trim();
-    let location    = document.getElementById('trainingLocation').value.trim();
-    const sessions  = this._collectSessions();
+    const title       = document.getElementById('trainingTitle').value.trim();
+    const organizer   = document.getElementById('trainingOrganizer').value.trim();
+    let location      = document.getElementById('trainingLocation').value.trim();
+    const description = document.getElementById('trainingDescription').value.trim();
+    const sessions    = this._collectSessions();
 
     // จุดแก้ไขที่ 4: ตรวจสอบและสลับค่า Location หากผู้ใช้เลือก "อื่นๆ"
     if (location === 'อื่นๆ') {
@@ -309,7 +315,7 @@ const CreateTrainingPage = {
     UI.setButtonLoading(btn, true, 'กำลังสร้าง...');
 
     try {
-      const result = await API.createTraining({ title, organizer, location, sessions });
+      const result = await API.createTraining({ title, organizer, location, description, sessions });
 
       // Show result panel
       document.getElementById('resultTrainingId').textContent = result.trainingId;
