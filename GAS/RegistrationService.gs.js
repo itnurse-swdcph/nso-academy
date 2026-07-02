@@ -53,6 +53,30 @@ const RegistrationService = {
 
       SheetService.insertRecords(CONFIG.SHEETS.REGISTRATIONS, [newReg]);
 
+      // บันทึกลงชีตเฉพาะของ Training ID
+      try {
+        const db = SheetService.getDb();
+        const tSheet = db.getSheetByName(payload.trainingId);
+        if (tSheet) {
+          const nextNum = tSheet.getLastRow();
+          const formattedDate = Utilities.formatDate(newReg.registeredAt, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+          
+          const headerValues = tSheet.getRange(1, 1, 1, tSheet.getLastColumn()).getValues()[0];
+          const rowData = headerValues.map(h => {
+            if (h === "ลำดับ") return nextNum;
+            if (h === "ชื่อ-นามสกุล") return payload.fullName;
+            if (h === "ตำแหน่ง") return payload.position;
+            if (h === "หน่วยงาน") return payload.department;
+            if (h === "สถานะ") return newReg.status;
+            if (h === "เวลาที่ลงทะเบียน") return formattedDate;
+            return "";
+          });
+          tSheet.appendRow(rowData);
+        }
+      } catch (e) {
+        console.error("Failed to write to training-specific sheet tab: ", e);
+      }
+
       return {
         regId: regId,
         message: "ลงทะเบียนสำเร็จ รอการอนุมัติเข้าร่วมอบรม"
@@ -85,6 +109,18 @@ const RegistrationService = {
   approveParticipant: function(regId) {
     const ok = SheetService.updateRecord(CONFIG.SHEETS.REGISTRATIONS, "regId", regId, { status: "APPROVED" });
     if (!ok) throw new Error("ไม่พบรายการลงทะเบียนที่ระบุ");
+
+    // อัปเดตในชีตเฉพาะของ Training
+    try {
+      const regs = SheetService.getRecords(CONFIG.SHEETS.REGISTRATIONS);
+      const reg = regs.find(r => r.regId === regId);
+      if (reg) {
+        SheetService.updateRecord(reg.trainingId, "ชื่อ-นามสกุล", reg.fullName, { "สถานะ": "APPROVED" });
+      }
+    } catch (e) {
+      console.error("Failed to update status in training-specific sheet: ", e);
+    }
+
     return { success: true };
   },
 
@@ -94,6 +130,18 @@ const RegistrationService = {
   rejectParticipant: function(regId) {
     const ok = SheetService.updateRecord(CONFIG.SHEETS.REGISTRATIONS, "regId", regId, { status: "REJECTED" });
     if (!ok) throw new Error("ไม่พบรายการลงทะเบียนที่ระบุ");
+
+    // อัปเดตในชีตเฉพาะของ Training
+    try {
+      const regs = SheetService.getRecords(CONFIG.SHEETS.REGISTRATIONS);
+      const reg = regs.find(r => r.regId === regId);
+      if (reg) {
+        SheetService.updateRecord(reg.trainingId, "ชื่อ-นามสกุล", reg.fullName, { "สถานะ": "REJECTED" });
+      }
+    } catch (e) {
+      console.error("Failed to update status in training-specific sheet: ", e);
+    }
+
     return { success: true };
   }
 };
