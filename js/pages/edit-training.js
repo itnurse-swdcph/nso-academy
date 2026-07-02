@@ -6,6 +6,13 @@
 const EditTrainingPage = {
   _sessionCount: 0,
 
+  _escapeTextarea(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  },
+
   /**
    * เปิด Modal แก้ไขข้อมูลการอบรม
    * @param {string} trainingId - รหัสการอบรม
@@ -98,6 +105,16 @@ const EditTrainingPage = {
         <!-- รอบวันเวลา -->
         <div class="form-section">
           <div class="form-section-title"><i class="fa-solid fa-calendar-days"></i> รอบวันและเวลาอบรม</div>
+          <div class="form-grid" style="margin-bottom: var(--space-4);">
+            <div class="form-group full-width">
+              <label class="form-label" for="editTrainingDescription">
+                รายละเอียดเพิ่มเติม
+              </label>
+              <textarea id="editTrainingDescription" class="form-control" rows="5" maxlength="5000"
+                placeholder="ระบุรายละเอียดเพิ่มเติม เช่น เงื่อนไขการเข้าร่วม เอกสารที่ต้องเตรียม หรือลิงก์ประกอบการอบรม">${this._escapeTextarea(training.description)}</textarea>
+              <div class="form-hint">ข้อมูลนี้จะแสดงในหน้าลงทะเบียนก่อนผู้เข้าอบรมยืนยันการลงทะเบียน</div>
+            </div>
+          </div>
           <div id="editSessionList" class="session-list"></div>
           <button type="button" class="add-session-btn" id="editAddSessionBtn" style="margin-top: 8px;">
             <i class="fa-solid fa-plus"></i> เพิ่มรอบการอบรม
@@ -328,6 +345,7 @@ const EditTrainingPage = {
     const title     = document.getElementById('editTrainingTitle').value.trim();
     const organizer = document.getElementById('editTrainingOrganizer').value.trim();
     const location  = document.getElementById('editTrainingLocation').value.trim();
+    const description = document.getElementById('editTrainingDescription')?.value.trim() || '';
     const sessions  = this._collectSessions();
 
     if (!title || !organizer || !location) {
@@ -343,7 +361,7 @@ const EditTrainingPage = {
     UI.showLoadingOverlay('กำลังบันทึกการแก้ไข...');
 
     try {
-      await API.updateTraining(trainingId, { title, organizer, location, sessions });
+      await API.updateTraining(trainingId, { title, organizer, location, description, sessions });
       
       UI.hideLoadingOverlay();
       UI.success('บันทึกการแก้ไขสำเร็จ!', 'สำเร็จ');
