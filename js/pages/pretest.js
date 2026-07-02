@@ -6,12 +6,19 @@
 const PretestPage = {
   _questions: [],
   _trainingId: null,
+  _trainingTitle: null,
   _mode: 'build', // 'build' | 'take'
 
-  render(container, params) {
-    this._trainingId = params.id || '';
+  async render(container, params) {
+    const currentTopic = Utils.currentTrainingTopic.get();
+    this._trainingId = params.id || currentTopic?.id || '';
+    this._trainingTitle = params.title || (currentTopic?.id === this._trainingId ? currentTopic.name : '') || '';
     this._mode = params.mode || 'build';
     this._questions = [];
+
+    if (this._trainingId && this._mode === 'build' && !this._trainingTitle) {
+      await this._ensureTrainingTitle();
+    }
 
     if (this._mode === 'take') {
       this._renderTakeTest(container);
@@ -27,7 +34,8 @@ const PretestPage = {
         <div class="page-header" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:var(--space-4);">
           <div>
             <h1 class="page-title"><i class="fa-solid fa-file-circle-question"></i> Pre-test Builder</h1>
-            <p class="page-subtitle">สร้างข้อสอบก่อนอบรม — รหัสอบรม: ${this._trainingId || '(ยังไม่ได้เลือก)'}</p>
+            <p class="page-subtitle">หัวข้ออบรม: <strong>${this._trainingTitle || '(ยังไม่ได้เลือกหัวข้อ)'}</strong></p>
+            <p class="page-subtitle">รหัสอบรม: ${this._trainingId || '(ยังไม่ได้เลือก)'}</p>
           </div>
           <div style="display:flex; gap:var(--space-3); align-items:flex-start; flex-wrap:wrap;">
             <button class="btn btn-outline-teal btn-sm" id="loadExistingBtn">📥 โหลดข้อสอบเดิม</button>
@@ -80,7 +88,7 @@ const PretestPage = {
                 </div>
                 <div class="qr-url" id="pretestQrUrl">—</div>
                 <button class="btn btn-outline-navy btn-sm" style="margin-top:var(--space-2);"
-                  onclick="PretestPage._downloadQR()"><i class="fa-solid fa-download"></i> บันทึก QR</button>
+                  onclick="PretestPage._downloadQR()"><i class="fa-solid fa-download"></i> ดาวน์โหลด QR Code</button>
               </div>
             </div>
           </div>
@@ -99,6 +107,36 @@ const PretestPage = {
 
     // Add first question
     this._addQuestion();
+    this._loadExisting({ silent: true, keepDefaultsOnEmpty: true });
+  },
+
+  async _ensureTrainingTitle() {
+    if (!this._trainingId || this._trainingTitle) return this._trainingTitle;
+    try {
+      const training = await API.getTrainingById(this._trainingId);
+      this._trainingTitle = training?.title || training?.name || '';
+      if (this._trainingTitle) {
+        Utils.currentTrainingTopic.set({ id: this._trainingId, name: this._trainingTitle });
+      }
+    } catch (e) {
+      console.warn('[Pretest] Failed to load training title:', e);
+    }
+    return this._trainingTitle;
+  },
+
+  _showQRPanel(questions, testType = 'PRE') {
+    const panel = document.getElementById('pretestQrPanel');
+    if (!panel || !this._trainingId) return;
+    const totalScore = questions.reduce((s, q) => s + (q.score || 0), 0);
+    document.getElementById('qrQuestionCount').textContent = questions.length;
+    document.getElementById('qrTotalScore').textContent = totalScore;
+
+    const url = testType === 'POST'
+      ? Utils.buildPosttestUrl(this._trainingId)
+      : Utils.buildPretestUrl(this._trainingId);
+    document.getElementById('pretestQrUrl').textContent = url;
+    Utils.generateQR(document.getElementById('pretestQRCanvas'), url, 180);
+    panel.classList.remove('hidden');
   },
 
   _addQuestion(data = null) {
@@ -229,16 +267,7 @@ const PretestPage = {
 
     try {
       await API.saveQuestions(this._trainingId, 'PRE', questions);
-
-      const totalScore = questions.reduce((s, q) => s + (q.score || 0), 0);
-      document.getElementById('qrQuestionCount').textContent = questions.length;
-      document.getElementById('qrTotalScore').textContent = totalScore;
-
-      const url = Utils.buildPretestUrl(this._trainingId);
-      document.getElementById('pretestQrUrl').textContent = url;
-      Utils.generateQR(document.getElementById('pretestQRCanvas'), url, 180);
-
-      document.getElementById('pretestQrPanel').classList.remove('hidden');
+      this._showQRPanel(questions, 'PRE');
       document.getElementById('pretestQrPanel').scrollIntoView({ behavior: 'smooth' });
       UI.success(`บันทึก ${questions.length} ข้อสอบสำเร็จ!`);
 
@@ -249,28 +278,40 @@ const PretestPage = {
     }
   },
 
-  async _loadExisting() {
+  async _loadExisting(options = {}) {
     if (!this._trainingId) { UI.error('กรุณาระบุรหัสการอบรมก่อน'); return; }
     try {
       const existing = await API.getQuestions(this._trainingId, 'PRE');
-      if (!existing?.length) { UI.info('ยังไม่มีข้อสอบสำหรับการอบรมนี้'); return; }
+      if (!existing?.length) {
+        if (!options.silent) UI.info('ยังไม่มีข้อสอบสำหรับการอบรมนี้');
+        return;
+      }
 
       this._questions = [];
       document.getElementById('questionsContainer').innerHTML = '';
       existing.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(q => this._addQuestion(q));
-      UI.success(`โหลด ${existing.length} ข้อสอบเรียบร้อย`);
+      this._showQRPanel(existing, 'PRE');
+      if (!options.silent) UI.success(`โหลด ${existing.length} ข้อสอบเรียบร้อย`);
     } catch (err) {
-      UI.error('ไม่สามารถโหลดข้อสอบ: ' + err.message);
+      if (!options.silent) UI.error('ไม่สามารถโหลดข้อสอบ: ' + err.message);
     }
   },
 
-  _downloadQR() {
-    const canvas = document.getElementById('pretestQRCanvas');
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = `QR_Pretest_${this._trainingId}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+  async _downloadQR(testType = 'PRE') {
+    if (!this._trainingId) return;
+    await this._ensureTrainingTitle();
+    const header = testType === 'POST'
+      ? 'แบบทดสอบหลังอบรม (Post-test)'
+      : 'แบบทดสอบก่อนอบรม (Pre-test)';
+    const url = testType === 'POST'
+      ? Utils.buildPosttestUrl(this._trainingId)
+      : Utils.buildPretestUrl(this._trainingId);
+    Utils.downloadTrainingQRCard(
+      header,
+      this._trainingTitle || this._trainingId,
+      url,
+      `QR_${testType}_${Utils.safeFilename(this._trainingTitle || this._trainingId)}`
+    );
   },
 
   // ─── Take Test Mode ──────────────────────────────────────────
@@ -418,5 +459,6 @@ const PretestPage = {
   cleanup() {
     this._questions = [];
     this._trainingId = null;
+    this._trainingTitle = null;
   }
 };
