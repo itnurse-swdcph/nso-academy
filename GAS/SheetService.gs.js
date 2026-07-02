@@ -5,7 +5,7 @@
  */
 
 const SCHEMAS = {
-  "Trainings": ["trainingId", "title", "organizer", "location", "managementCode", "status", "createdAt"],
+  "Trainings": ["trainingId", "title", "organizer", "location", "managementCode", "status", "createdAt", "description"],
   "Sessions": ["sessionId", "trainingId", "sessionDate", "startTime", "endTime", "maxSeats"],
   "Participants": ["participantId", "fullName", "position", "department", "isActive"],
   "Registrations": ["regId", "sessionId", "trainingId", "participantId", "fullName", "position", "department", "status", "registeredAt"],
