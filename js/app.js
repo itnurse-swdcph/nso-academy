@@ -72,6 +72,7 @@ async function initApp() {
         Utils.storage.remove('admin_logged_in');
         Utils.storage.remove('mgmt_unlock');
         Utils.storage.remove('token');
+        Utils.currentTrainingTopic.clear();
         
         // ถ้าต้องการล้างทั้งหมดแบบไม่เหลือซาก สามารถใช้ localStorage.clear(); ได้เลย
 
