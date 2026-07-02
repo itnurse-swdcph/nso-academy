@@ -80,8 +80,9 @@ const ManagePage = {
         UI.showLoadingOverlay('กำลังออกจากระบบ...');
         
         // เคลียร์สถานะแอดมินและ Token
-        Utils.storage.remove('admin_logged_in');
-        Utils.storage.remove('token');
+      Utils.storage.remove('admin_logged_in');
+      Utils.storage.remove('token');
+      Utils.currentTrainingTopic.clear();
         
         UI.success('ออกจากระบบแอดมินแล้ว');
         UI.hideLoadingOverlay();
@@ -124,6 +125,10 @@ const ManagePage = {
         opt.textContent = t.title;
         sel.appendChild(opt);
       });
+      const current = Utils.currentTrainingTopic.get();
+      if (current?.id && [...sel.options].some(opt => opt.value === current.id)) {
+        sel.value = current.id;
+      }
     } catch (err) {
       UI.error('ไม่สามารถโหลดรายการอบรม');
     }
@@ -131,6 +136,8 @@ const ManagePage = {
 
   async _handleUnlock(container) {
     const trainingId = document.getElementById('mgmtTrainingSel').value;
+    const selectedOption = document.getElementById('mgmtTrainingSel').selectedOptions[0];
+    const trainingName = selectedOption?.textContent || '';
     const code = document.getElementById('mgmtCodeInput').value.trim();
     const errEl = document.getElementById('unlockError');
 
@@ -139,6 +146,7 @@ const ManagePage = {
     const isAdmin = Utils.storage.get('admin_logged_in') === true;
     if (isAdmin) {
       Utils.storage.set('mgmt_unlock', { trainingId, code: 'ADMIN' });
+      Utils.currentTrainingTopic.set({ id: trainingId, name: trainingName });
       this._unlockedTrainingId = trainingId;
       this._unlockedCode = 'ADMIN';
       await this._renderManagementHub(container, trainingId);
@@ -155,6 +163,7 @@ const ManagePage = {
     try {
       await API.validateCode(trainingId, code);
       Utils.storage.set('mgmt_unlock', { trainingId, code });
+      Utils.currentTrainingTopic.set({ id: trainingId, name: trainingName });
       this._unlockedTrainingId = trainingId;
       this._unlockedCode = code;
       await this._renderManagementHub(container, trainingId);
@@ -168,9 +177,15 @@ const ManagePage = {
 
   async _renderManagementHub(container, trainingId) {
     let title = 'ระบบบริหารจัดการ';
+    let trainings = [];
     try {
-      const tDetail = await API.getTrainingById(trainingId);
+      const [tDetail, list] = await Promise.all([
+        API.getTrainingById(trainingId),
+        API.getTrainings().catch(() => [])
+      ]);
       if (tDetail) title = tDetail.title;
+      trainings = list || [];
+      Utils.currentTrainingTopic.set({ id: trainingId, name: title });
     } catch (e) {
       console.warn('[Manage] Failed to load training details:', e);
     }
@@ -182,7 +197,10 @@ const ManagePage = {
             <h1 class="page-title">${title}</h1>
             <p class="page-subtitle">รหัสการอบรม: <strong>${trainingId}</strong></p>
           </div>
-          <div style="display:flex; gap: var(--space-2);">
+          <div style="display:flex; gap: var(--space-2); align-items:flex-start; flex-wrap:wrap;">
+            <select id="manageTopicSwitcher" class="form-control" style="min-width:280px; max-width:420px;">
+              ${trainings.map(t => `<option value="${t.trainingId}" ${t.trainingId === trainingId ? 'selected' : ''}>${t.title}</option>`).join('')}
+            </select>
             <button class="btn btn-outline-teal btn-sm" id="mgmtQRBtn"><i class="fa-solid fa-qrcode"></i> QR Code ลงทะเบียน</button>
           </div>
         </div>
@@ -234,6 +252,16 @@ const ManagePage = {
 
     document.getElementById('mgmtQRBtn').addEventListener('click', () => {
       this._showQRModal(trainingId, title);
+    });
+
+    document.getElementById('manageTopicSwitcher')?.addEventListener('change', async (e) => {
+      const nextId = e.target.value;
+      const nextName = e.target.selectedOptions[0]?.textContent || '';
+      if (!nextId || nextId === trainingId) return;
+      Utils.storage.set('mgmt_unlock', { trainingId: nextId, code: this._unlockedCode || 'ADMIN' });
+      Utils.currentTrainingTopic.set({ id: nextId, name: nextName });
+      this._unlockedTrainingId = nextId;
+      await this._renderManagementHub(container, nextId);
     });
   },
 
