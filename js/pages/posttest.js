@@ -5,16 +5,24 @@
 
 const PosttestPage = {
   _trainingId: null,
+  _trainingTitle: null,
   _mode: 'build',
   _usePretest: null,
 
-  render(container, params) {
-    this._trainingId = params.id || '';
+  async render(container, params) {
+    const currentTopic = Utils.currentTrainingTopic.get();
+    this._trainingId = params.id || currentTopic?.id || '';
+    this._trainingTitle = params.title || (currentTopic?.id === this._trainingId ? currentTopic.name : '') || '';
     this._mode = params.mode || 'build';
+
+    if (this._trainingId && this._mode === 'build' && !this._trainingTitle) {
+      await this._ensureTrainingTitle();
+    }
 
     if (this._mode === 'take') {
       // Reuse pretest render logic with type=POST
       PretestPage._trainingId = this._trainingId;
+      PretestPage._trainingTitle = this._trainingTitle;
       PretestPage._renderTakeTest(container).then(() => {
         // Override type label
         container.querySelectorAll('.training-info-title').forEach(el => {
@@ -32,6 +40,7 @@ const PosttestPage = {
       <div class="animate-fade-in">
         <div class="page-header">
           <h1 class="page-title"><i class="fa-solid fa-file-lines"></i> Post-test Builder</h1>
+          <p class="page-subtitle">หัวข้ออบรม: <strong>${this._trainingTitle || '(ยังไม่ได้เลือกหัวข้อ)'}</strong></p>
           <p class="page-subtitle">รหัสอบรม: ${this._trainingId || '(ยังไม่ได้เลือก)'}</p>
         </div>
 
@@ -70,6 +79,34 @@ const PosttestPage = {
 
     document.getElementById('choosePretestBtn').addEventListener('click', () => this._handleUsePretest(container));
     document.getElementById('chooseNewBtn').addEventListener('click', () => this._handleCreateNew(container));
+    this._loadExistingPost({ silent: true });
+  },
+
+  async _ensureTrainingTitle() {
+    if (!this._trainingId || this._trainingTitle) return this._trainingTitle;
+    try {
+      const training = await API.getTrainingById(this._trainingId);
+      this._trainingTitle = training?.title || training?.name || '';
+      if (this._trainingTitle) {
+        Utils.currentTrainingTopic.set({ id: this._trainingId, name: this._trainingTitle });
+      }
+    } catch (e) {
+      console.warn('[Posttest] Failed to load training title:', e);
+    }
+    return this._trainingTitle;
+  },
+
+  async _loadExistingPost(options = {}) {
+    if (!this._trainingId) return;
+    try {
+      const questions = await API.getQuestions(this._trainingId, 'POST');
+      if (!questions?.length) return;
+      const totalScore = questions.reduce((s, q) => s + (q.score || 1), 0);
+      this._showPostQR(document.getElementById('postChoiceResult'), questions.length, totalScore);
+      if (!options.silent) UI.success(`โหลด Post-test เดิม ${questions.length} ข้อเรียบร้อย`);
+    } catch (err) {
+      if (!options.silent) UI.error('ไม่สามารถโหลด Post-test เดิม: ' + err.message);
+    }
   },
 
   async _handleUsePretest(container) {
@@ -142,6 +179,7 @@ const PosttestPage = {
     // Reuse PretestPage builder but with type = POST
     const appContainer = document.getElementById('app');
     PretestPage._trainingId = this._trainingId;
+    PretestPage._trainingTitle = this._trainingTitle;
     PretestPage._questions = [];
     PretestPage._mode = 'build';
 
@@ -154,13 +192,7 @@ const PosttestPage = {
       UI.setButtonLoading(btn, true, 'กำลังบันทึก...');
       try {
         await API.saveQuestions(PretestPage._trainingId, 'POST', questions);
-        const totalScore = questions.reduce((s, q) => s + (q.score || 0), 0);
-        document.getElementById('qrQuestionCount').textContent = questions.length;
-        document.getElementById('qrTotalScore').textContent = totalScore;
-        const url = Utils.buildPosttestUrl(PretestPage._trainingId);
-        document.getElementById('pretestQrUrl').textContent = url;
-        Utils.generateQR(document.getElementById('pretestQRCanvas'), url, 180);
-        document.getElementById('pretestQrPanel').classList.remove('hidden');
+        PretestPage._showQRPanel(questions, 'POST');
         document.getElementById('pretestQrPanel').scrollIntoView({ behavior: 'smooth' });
         UI.success(`บันทึก ${questions.length} ข้อสอบ Post-test สำเร็จ!`);
         PretestPage._saveQuestions = origSave; // restore
@@ -175,6 +207,11 @@ const PosttestPage = {
 
     // Update title
     appContainer.querySelector('.page-title').innerHTML = '<i class="fa-solid fa-file-lines"></i> Post-test Builder';
+    appContainer.querySelector('.page-title')?.insertAdjacentHTML('afterend', `<p class="page-subtitle">หัวข้ออบรม: <strong>${this._trainingTitle || '(ยังไม่ได้เลือกหัวข้อ)'}</strong></p>`);
+    const qrLabel = appContainer.querySelector('#pretestQrPanel .qr-label');
+    if (qrLabel) qrLabel.innerHTML = '<i class="fa-solid fa-qrcode"></i> QR Code Post-test';
+    const downloadBtn = appContainer.querySelector('#pretestQrPanel button[onclick]');
+    if (downloadBtn) downloadBtn.setAttribute('onclick', "PretestPage._downloadQR('POST')");
   },
 
   _showPostQR(el, count, totalScore) {
@@ -192,17 +229,31 @@ const PosttestPage = {
           </div>
           <div class="qr-panel has-qr" style="width:260px;">
             <div class="qr-label"><i class="fa-solid fa-qrcode"></i> QR Code Post-test</div>
+            <div style="text-align:center; font-size:var(--text-xs); color:var(--gray-500); margin-bottom:var(--space-3); font-weight:var(--fw-semi);">${this._trainingTitle || ''}</div>
             <div class="qr-canvas-wrapper"><canvas id="posttestQRCanvas"></canvas></div>
             <div class="qr-url">${url}</div>
+            <button class="btn btn-outline-navy btn-sm" style="margin-top:var(--space-3);" id="downloadPostQrBtn">
+              <i class="fa-solid fa-download"></i> ดาวน์โหลด QR Code
+            </button>
           </div>
         </div>
       </div>
     `;
     Utils.generateQR(document.getElementById('posttestQRCanvas'), url, 180);
+    document.getElementById('downloadPostQrBtn')?.addEventListener('click', async () => {
+      await this._ensureTrainingTitle();
+      Utils.downloadTrainingQRCard(
+        'แบบทดสอบหลังอบรม (Post-test)',
+        this._trainingTitle || this._trainingId,
+        url,
+        `QR_POST_${Utils.safeFilename(this._trainingTitle || this._trainingId)}`
+      );
+    });
   },
 
   cleanup() {
     this._trainingId = null;
+    this._trainingTitle = null;
     this._usePretest = null;
   }
 };
