@@ -665,5 +665,134 @@ const Utils = {
       catch (e) { console.warn('[Storage] Failed to write:', e); }
     },
     remove(key) { localStorage.removeItem(key); }
+  },
+
+  currentTrainingTopic: {
+    get() {
+      return Utils.storage.get('currentTrainingTopic');
+    },
+    set(topic) {
+      const id = topic?.id || topic?.trainingId;
+      const name = topic?.name || topic?.title || '';
+      if (!id) return;
+      Utils.storage.set('currentTrainingTopic', { id, name });
+    },
+    clear() {
+      Utils.storage.remove('currentTrainingTopic');
+    }
+  },
+
+  safeFilename(text, fallback = 'download') {
+    const cleaned = String(text || '')
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .replace(/\s+/g, '_')
+      .slice(0, 80);
+    return cleaned || fallback;
+  },
+
+  wrapCanvasText(ctx, text, maxWidth, maxLines = 2) {
+    const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ');
+    const lines = [];
+    let line = '';
+
+    words.forEach(word => {
+      const testLine = line ? `${line} ${word}` : word;
+      if (ctx.measureText(testLine).width <= maxWidth) {
+        line = testLine;
+        return;
+      }
+      if (line) lines.push(line);
+      line = word;
+    });
+
+    if (line) lines.push(line);
+    if (lines.length <= maxLines) return lines;
+
+    const visible = lines.slice(0, maxLines);
+    let last = visible[maxLines - 1];
+    while (ctx.measureText(`${last}...`).width > maxWidth && last.length > 0) {
+      last = last.slice(0, -1);
+    }
+    visible[maxLines - 1] = `${last}...`;
+    return visible;
+  },
+
+  downloadTrainingQRCard(header, trainingTitle, url, filename = 'training-qr') {
+    if (typeof QRious === 'undefined') {
+      console.warn('[Utils] QRious library not loaded');
+      return;
+    }
+
+    const width = 900;
+    const height = 1180;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(54, 54, width - 108, height - 108);
+    ctx.strokeStyle = '#0D2B5E';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(54, 54, width - 108, height - 108);
+    ctx.strokeStyle = '#00897b';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(74, 74, width - 148, height - 148);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = '#0D2B5E';
+    ctx.font = 'bold 38px "Sarabun", "Prompt", sans-serif';
+    this.wrapCanvasText(ctx, header, width - 180, 2).forEach((line, i, arr) => {
+      ctx.fillText(line, width / 2, 150 + (i - (arr.length - 1) / 2) * 48);
+    });
+
+    ctx.fillStyle = '#00897b';
+    ctx.font = '600 28px "Sarabun", "Prompt", sans-serif';
+    this.wrapCanvasText(ctx, trainingTitle || 'ไม่ระบุชื่อหัวข้ออบรม', width - 180, 3).forEach((line, i) => {
+      ctx.fillText(line, width / 2, 250 + i * 40);
+    });
+
+    const qrSize = 460;
+    const qrCanvas = document.createElement('canvas');
+    new QRious({
+      element: qrCanvas,
+      value: url,
+      size: qrSize,
+      foreground: '#000000',
+      background: '#FFFFFF',
+      level: 'H'
+    });
+
+    const qrX = (width - qrSize) / 2;
+    const qrY = 390;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(15, 23, 42, 0.16)';
+    ctx.shadowBlur = 28;
+    ctx.shadowOffsetY = 12;
+    ctx.fillRect(qrX - 42, qrY - 42, qrSize + 84, qrSize + 84);
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(qrX - 42, qrY - 42, qrSize + 84, qrSize + 84);
+    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+    ctx.fillStyle = '#0D2B5E';
+    ctx.font = 'bold 34px "Sarabun", "Prompt", sans-serif';
+    ctx.fillText('สแกน QR Code เพื่อเข้าใช้งาน', width / 2, 940);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '500 20px "Sarabun", "Prompt", sans-serif';
+    this.wrapCanvasText(ctx, url, width - 190, 2).forEach((line, i) => {
+      ctx.fillText(line, width / 2, 1000 + i * 28);
+    });
+
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `${filename}.png`;
+    a.click();
   }
 };
