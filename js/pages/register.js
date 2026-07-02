@@ -23,6 +23,14 @@ const RegisterPage = {
           <div class="page-loader"><div class="spinner"></div><span>กำลังโหลดข้อมูลการอบรม...</span></div>
         </div>
 
+        <!-- Details Card -->
+        <div class="register-card" id="detailsCard" style="display:none; margin-bottom: var(--space-4);">
+          <div class="form-section" style="margin-bottom:0;">
+            <div class="form-section-title"><i class="fa-solid fa-circle-info"></i> รายละเอียดการอบรมเพิ่มเติม</div>
+            <div id="trainingDetailsContent" style="white-space: pre-line; line-height: 1.6; color: var(--navy-700); font-size: 0.95rem; margin-top: var(--space-2);"></div>
+          </div>
+        </div>
+
         <!-- Registration Form Card -->
         <div class="register-card" id="registerCard" style="display:none;">
           <form id="regForm" novalidate>
@@ -149,6 +157,7 @@ const RegisterPage = {
       training.sessions = activeSessions;
       this._training = training;
       this._renderBanner(banner, training);
+      this._updateDetailsBlock(container, training);
       this._populateSessions(training.sessions || []);
       card.style.display = 'block';
       this._initForm(container, training);
@@ -213,6 +222,7 @@ const RegisterPage = {
           trainingDetails.sessions = sessions || [];
           this._training = trainingDetails;
           this._renderBanner(banner, trainingDetails);
+          this._updateDetailsBlock(container, trainingDetails);
           this._populateSessions(sessions || []);
         }
       } catch (err) {
@@ -448,6 +458,38 @@ const RegisterPage = {
     document.getElementById('nameHint').textContent = 'พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา';
     document.getElementById('nameHint').style.color = '';
     this._selectedParticipant = null;
+  },
+
+  _updateDetailsBlock(container, training) {
+    const detailsCard = container.querySelector('#detailsCard');
+    const detailsContent = container.querySelector('#trainingDetailsContent');
+    if (!detailsCard || !detailsContent) return;
+
+    if (training && training.description && training.description.trim()) {
+      const parsedDescription = this._parseHyperlinks(training.description);
+      detailsContent.innerHTML = parsedDescription;
+      detailsCard.style.display = 'block';
+    } else {
+      detailsContent.innerHTML = '';
+      detailsCard.style.display = 'none';
+    }
+  },
+
+  _parseHyperlinks(text) {
+    if (!text) return '';
+    // Prevent XSS by escaping HTML tags first
+    let escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+    // Regular expression to detect links starting with http:// or https://
+    const urlRegex = /(https?:\/\/[^\s\r\n\t]+)/g;
+    return escaped.replace(urlRegex, (url) => {
+      return `<a href="${url}" target="_blank" class="text-teal" style="text-decoration: underline; font-weight: 500;">${url}</a>`;
+    });
   },
 
   cleanup() {
