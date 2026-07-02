@@ -21,11 +21,16 @@ const SatisfactionPage = {
     'อื่นๆ'
   ],
 
-  render(container, params) {
-    this._trainingId = params.id || '';
-    this._trainingTitle = params.title || '';
+  async render(container, params) {
+    const currentTopic = Utils.currentTrainingTopic.get();
+    this._trainingId = params.id || currentTopic?.id || '';
+    this._trainingTitle = params.title || (currentTopic?.id === this._trainingId ? currentTopic.name : '') || '';
     this._mode = params.mode || 'build';
     this._questions = [];
+
+    if (this._trainingId && this._mode === 'build' && !this._trainingTitle) {
+      await this._ensureTrainingTitle();
+    }
 
     if (this._mode === 'take') {
       this._renderTakeForm(container);
@@ -91,6 +96,7 @@ const SatisfactionPage = {
     document.getElementById('addTextBtn').addEventListener('click', () => this._addQuestion('TEXT'));
     document.getElementById('saveSatBtn').addEventListener('click', () => this._saveForm());
     document.getElementById('loadSatBtn').addEventListener('click', () => this._loadExisting());
+    setTimeout(() => this._loadExisting({ silent: true }), 0);
 
     // Default questions - ตั้งค่าเริ่มต้น 6 ข้อประเมินคะแนน + ข้อเสนอแนะ
     this._addQuestion('RATING', { 
@@ -121,6 +127,37 @@ const SatisfactionPage = {
       questionText: '7. ข้อเสนอแนะเพิ่มเติม (ระบุ)',
       isRequired: false 
     });
+  },
+
+  async _ensureTrainingTitle() {
+    if (!this._trainingId || this._trainingTitle) return this._trainingTitle;
+    try {
+      const training = await API.getTrainingById(this._trainingId);
+      this._trainingTitle = training?.title || training?.name || '';
+      if (this._trainingTitle) {
+        Utils.currentTrainingTopic.set({ id: this._trainingId, name: this._trainingTitle });
+      }
+    } catch (e) {
+      console.warn('[Satisfaction] Failed to load training title:', e);
+    }
+    return this._trainingTitle;
+  },
+
+  _showQRPanel(questions) {
+    const panel = document.getElementById('satQrPanel');
+    if (!panel || !this._trainingId) return;
+
+    const rating = questions.filter(q => q.questionType === 'RATING').length;
+    const text = questions.filter(q => q.questionType === 'TEXT').length;
+    document.getElementById('satSummary').textContent =
+      `${questions.length} คำถาม (ประเมินคะแนน ${rating} ข้อ • พิมพ์ข้อความ ${text} ข้อ)`;
+
+    const base = window.location.href.split('#')[0];
+    const url = `${base}#/satisfaction?id=${this._trainingId}&mode=take`;
+    document.getElementById('satQrUrl').textContent = url;
+    document.getElementById('satQrTitle').textContent = this._trainingTitle || '';
+    Utils.generateQR(document.getElementById('satQRCanvas'), url, 180);
+    panel.classList.remove('hidden');
   },
 
   _addQuestion(type, data = {}) {
@@ -254,16 +291,19 @@ const SatisfactionPage = {
     }
   },
 
-  async _loadExisting() {
+  async _loadExisting(options = {}) {
     if (!this._trainingId) { UI.error('กรุณาระบุรหัสการอบรมก่อน'); return; }
     try {
       const existing = await API.getSatisfactionForm(this._trainingId);
+      if (!existing?.length && options.silent) return;
       if (!existing?.length) { UI.info('ยังไม่มีแบบประเมินสำหรับการอบรมนี้'); return; }
       this._questions = [];
       document.getElementById('satQuestionsContainer').innerHTML = '';
       existing.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(q => this._addQuestion(q.questionType, q));
-      UI.success(`โหลด ${existing.length} คำถามเรียบร้อย`);
+      this._showQRPanel(existing);
+      if (!options.silent) UI.success(`โหลด ${existing.length} คำถามเรียบร้อย`);
     } catch (err) {
+      if (options.silent) return;
       UI.error('ไม่สามารถโหลด: ' + err.message);
     }
   },
@@ -312,7 +352,12 @@ const SatisfactionPage = {
     const title = `ประเมินความพึงพอใจ ${this._trainingTitle || `(${this._trainingId})`}`;
     
     // 4. ส่งข้อมูลไปสร้างการ์ด
-    Utils.downloadQRCard(title, url, `satisfaction-card-${this._trainingId}`);
+    Utils.downloadTrainingQRCard(
+      'แบบประเมินความพึงพอใจ',
+      this._trainingTitle || this._trainingId,
+      url,
+      `QR_SAT_${Utils.safeFilename(this._trainingTitle || this._trainingId)}`
+    );
   },
 
   // ─── Take Form Mode ──────────────────────────────────────────
