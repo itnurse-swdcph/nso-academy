@@ -25,7 +25,8 @@ const DashboardPage = {
   async render(container, params) {
     const unlockInfo = Utils.storage.get('mgmt_unlock');
     const isAdmin = Utils.storage.get('admin_logged_in') === true;
-    const paramId = params.id;
+    const currentTopic = Utils.currentTrainingTopic.get();
+    const paramId = params.id || currentTopic?.id;
 
     // Check if unlocked for this training or admin is logged in
     if (!isAdmin && (!unlockInfo || (paramId && unlockInfo.trainingId !== paramId))) {
@@ -43,7 +44,7 @@ const DashboardPage = {
     }
 
     this._trainingId = paramId || (unlockInfo ? unlockInfo.trainingId : null);
-    this._trainingTitle = null;
+    this._trainingTitle = currentTopic?.id === this._trainingId ? currentTopic.name : null;
     this._activeTab = 'approval';
     this._shuffledSatisfaction = null;
 
@@ -109,7 +110,10 @@ const DashboardPage = {
       ]);
 
       // แสดงชื่อหัวข้ออบรมใน header ทันทีที่ดึงข้อมูลได้
-      this._trainingTitle = trainingDetail?.title || trainingDetail?.name || null;
+      this._trainingTitle = trainingDetail?.title || trainingDetail?.name || this._trainingTitle || null;
+      if (this._trainingTitle) {
+        Utils.currentTrainingTopic.set({ id: this._trainingId, name: this._trainingTitle });
+      }
       const titleEl = document.getElementById('dashboardTrainingTitle');
       if (titleEl) {
         titleEl.textContent = this._trainingTitle
